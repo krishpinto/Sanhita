@@ -19,7 +19,7 @@ own. The app is the protocol, made walkable.
 ## Not in scope for this build
 
 There is a **separate, unrelated project** — an ambient consult-transcription
-app (repo: `vitalis`) — that some of you may hear about. It is a different
+app (repo: `futurescope`) — that some of you may hear about. It is a different
 product, a different repo, a different architecture, built for a different
 purpose. Nothing from it is reused here, and nothing here feeds it. If a task
 description starts sounding like "transcribe the doctor," that task belongs
