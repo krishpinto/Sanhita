@@ -24,3 +24,8 @@ export function lookupProtocol(complaintText: string, age?: number): ProtocolDef
   });
   return entry ? (REGISTRY[entry.protocolId] ?? null) : null;
 }
+
+/** Read-only lookup for displaying encounter outcome severity — not routing logic. */
+export function getOutcome(protocolId: string, outcomeId: string) {
+  return REGISTRY[protocolId]?.outcomes[outcomeId] ?? null;
+}

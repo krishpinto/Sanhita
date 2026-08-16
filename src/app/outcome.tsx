@@ -1,15 +1,14 @@
-// Outcome — the four-part recommendation: LIKELY, DO NOW, TELL THE PATIENT,
-// REFER NOW IF, FOLLOW UP. Every line cited to a named guideline section.
-// See ../../README.md, "The components" → Protocol Definition.
+// Outcome — severity pill + four-part recommendation with citations.
 
-import { useRouter } from 'expo-router';
-import { RotateCcw, ShieldAlert } from 'lucide-react-native';
+import { useRouter } from "expo-router";
+import { ShieldAlert } from "lucide-react-native";
 
-import { Card, PrimaryButton, SectionHeader, T } from '@/components/ui';
-import { currentOutcome } from '@/lib/protocol-engine';
-import { useSanhita } from '@/lib/store';
-import { severityMeta } from '@/theme';
-import { ScrollView, View } from '@/tw';
+import { PageContainer } from "@/components/layout";
+import { Card, OutcomeSection, PrimaryButton, StatusPill, T } from "@/components/ui";
+import { currentOutcome } from "@/lib/protocol-engine";
+import { useSanhita } from "@/lib/store";
+import { c, severityMeta } from "@/theme";
+import { ScrollView, View } from "@/tw";
 
 export default function OutcomeScreen() {
   const router = useRouter();
@@ -32,76 +31,81 @@ export default function OutcomeScreen() {
 
   function startOver() {
     reset();
-    router.replace('/home');
+    router.replace("/home");
   }
 
   return (
-    <ScrollView className="flex-1 bg-bg" contentContainerClassName="p-6 gap-4 pb-10">
-      {engine.redFlagFired && (
-        <Card className="flex-row items-center gap-3" style={{ backgroundColor: '#FBEDEB' }}>
-          <ShieldAlert size={20} color="#8C3A32" />
-          <T variant="secondary" tone="danger" className="flex-1">
-            A danger sign was flagged during this encounter.
-          </T>
+    <ScrollView className="flex-1 bg-bg" contentContainerClassName="pb-10">
+      <PageContainer className="pt-2 gap-4">
+        <Card className="gap-4">
+          {engine.redFlagFired && (
+            <View className="flex-row items-center gap-3 bg-danger-bg border border-danger-border rounded-card p-4">
+              <ShieldAlert size={20} color={c.dangerText} />
+              <T variant="secondary" tone="danger" className="flex-1">
+                A danger sign was flagged during this encounter.
+              </T>
+            </View>
+          )}
+
+          <View className="gap-2">
+            <StatusPill
+              label={meta.clinicalLabel}
+              role={
+                meta.role === "danger"
+                  ? "danger"
+                  : meta.role === "warning"
+                    ? "warning"
+                    : "success"
+              }
+            />
+            <T variant="pageTitle">{outcome.likely}</T>
+          </View>
+
+          <View className="gap-3">
+            <OutcomeSection
+              title="Do now"
+              tone="neutral"
+              citation={outcome.citations.doNow}
+            >
+              {outcome.doNow.map((line) => (
+                <T key={line} variant="secondary">
+                  • {line}
+                </T>
+              ))}
+            </OutcomeSection>
+
+            <OutcomeSection
+              title="Tell the patient"
+              tone="neutral"
+              citation={outcome.citations.tellPatient}
+            >
+              <T variant="secondary">{outcome.tellPatient}</T>
+            </OutcomeSection>
+
+            <OutcomeSection
+              title="Refer now if"
+              tone="danger"
+              citation={outcome.citations.referIf}
+            >
+              {outcome.referIf.map((line) => (
+                <T key={line} variant="secondary">
+                  • {line}
+                </T>
+              ))}
+            </OutcomeSection>
+
+            <OutcomeSection
+              title="Follow up"
+              tone="neutral"
+              citation={outcome.citations.followUp}
+            >
+              <T variant="secondary">{outcome.followUp}</T>
+            </OutcomeSection>
+          </View>
+
+          <PrimaryButton label="Start over" onPress={startOver} fullWidth={false} />
         </Card>
-      )}
-
-      <Card className="gap-1" accent={meta.color}>
-        <T variant="overline" tone="secondary">
-          {meta.label} · LIKELY
-        </T>
-        <T variant="title">{outcome.likely}</T>
-      </Card>
-
-      <Card className="gap-2">
-        <SectionHeader title="Do now" />
-        {outcome.doNow.map((line) => (
-          <T key={line} variant="secondary">
-            • {line}
-          </T>
-        ))}
-        {outcome.citations.doNow && (
-          <T variant="caption" tone="secondary">
-            {outcome.citations.doNow}
-          </T>
-        )}
-      </Card>
-
-      <Card className="gap-2">
-        <SectionHeader title="Tell the patient" />
-        <T variant="secondary">{outcome.tellPatient}</T>
-        {outcome.citations.tellPatient && (
-          <T variant="caption" tone="secondary">
-            {outcome.citations.tellPatient}
-          </T>
-        )}
-      </Card>
-
-      <Card className="gap-2">
-        <SectionHeader title="Refer now if" />
-        {outcome.referIf.map((line) => (
-          <T key={line} variant="secondary">
-            • {line}
-          </T>
-        ))}
-        {outcome.citations.referIf && (
-          <T variant="caption" tone="secondary">
-            {outcome.citations.referIf}
-          </T>
-        )}
-      </Card>
-
-      <Card className="gap-2">
-        <SectionHeader title="Follow up" />
-        <T variant="secondary">{outcome.followUp}</T>
-        {outcome.citations.followUp && (
-          <T variant="caption" tone="secondary">
-            {outcome.citations.followUp}
-          </T>
-        )}
-      </Card>
-
-      <PrimaryButton label="Start over" icon={RotateCcw} variant="quiet" onPress={startOver} />
+      </PageContainer>
     </ScrollView>
   );
 }

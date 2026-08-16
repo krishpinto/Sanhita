@@ -3,6 +3,8 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo-google-fonts/montserrat": "^0.4.2",
+    "@expo-google-fonts/open-sans": "^0.4.2",
     "@expo/ui": "~56.0.20",
     "@opentelemetry/api": "^1.9.1",
     "@rn-primitives/slot": "^1.5.2",

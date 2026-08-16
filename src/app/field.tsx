@@ -1,16 +1,23 @@
-// Field View — one question at a time. The health worker sees only the
-// current step; no tree, no history. Delivery is thin and deliberately
-// dumb: it renders whatever the Protocol Engine hands it. See
-// ../../README.md, "Field view vs review view".
+// Field View — one question at a time with progress bar and segmented answers.
 
-import { useRouter } from 'expo-router';
-import { ArrowRight } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useRouter } from "expo-router";
+import { ArrowRight } from "lucide-react-native";
+import { useEffect, useMemo, useState } from "react";
 
-import { Card, PrimaryButton, T } from '@/components/ui';
-import { currentStep } from '@/lib/protocol-engine';
-import { useSanhita } from '@/lib/store';
-import { ScrollView, TextInput, View } from '@/tw';
+import { PageContainer } from "@/components/layout";
+import {
+    Card,
+    PrimaryButton,
+    ProgressBar,
+    SecondaryButton,
+    SegmentedControl,
+    T,
+    TertiaryButton,
+    TextField,
+} from "@/components/ui";
+import { currentStep } from "@/lib/protocol-engine";
+import { useSanhita } from "@/lib/store";
+import { ScrollView, View } from "@/tw";
 
 export default function FieldScreen() {
   const router = useRouter();
@@ -18,16 +25,26 @@ export default function FieldScreen() {
   const activeIndexCard = useSanhita((s) => s.activeIndexCard);
   const answerChoice = useSanhita((s) => s.answerCurrentChoice);
   const answerValue = useSanhita((s) => s.answerCurrentValue);
-  const [valueText, setValueText] = useState('');
+  const [valueText, setValueText] = useState("");
 
   const step = engine ? currentStep(engine) : null;
+  const totalSteps = engine ? Object.keys(engine.protocol.steps).length : 0;
+  const currentNum = engine ? engine.trail.length + 1 : 0;
+
+  const choiceSegments = useMemo(() => {
+    if (!step?.options) return [];
+    const last = step.options.length - 1;
+    return step.options
+      .slice(0, last)
+      .map((opt, i) => ({ label: opt.label, value: String(i) }));
+  }, [step]);
 
   useEffect(() => {
-    if (engine?.outcomeId) router.replace('/outcome');
+    if (engine?.outcomeId) router.replace("/outcome");
   }, [engine?.outcomeId, router]);
 
   useEffect(() => {
-    setValueText('');
+    setValueText("");
   }, [step?.id]);
 
   if (!engine || !activeIndexCard || !step) {
@@ -41,46 +58,80 @@ export default function FieldScreen() {
   }
 
   const lastOptionIndex = (step.options?.length ?? 0) - 1;
+  const unknownOption = step.options?.[lastOptionIndex];
 
   return (
-    <ScrollView className="flex-1 bg-bg" contentContainerClassName="p-6 gap-4">
-      <T variant="caption" tone="secondary" className="font-semibold tracking-wide">
-        {activeIndexCard.name} · {engine.protocol.title} v{engine.protocol.version}
-      </T>
-
-      <Card className="gap-4">
-        <T variant="title">{step.question}</T>
-
-        {step.answerType === 'choice' &&
-          step.options?.map((opt, i) => (
-            <PrimaryButton
-              key={opt.label}
-              label={opt.label}
-              variant={i === lastOptionIndex ? 'quiet' : 'inverse'}
-              onPress={() => answerChoice(i)}
-            />
-          ))}
-
-        {step.answerType === 'value' && (
-          <View className="gap-3">
-            <TextInput
-              className="bg-bg border border-border rounded-button px-4 py-3 text-body text-ink"
-              value={valueText}
-              onChangeText={setValueText}
-              placeholder={step.unit ? `Number of ${step.unit}` : 'Enter a number'}
-              placeholderTextColor="#9AA0AA"
-              keyboardType="number-pad"
-            />
-            <PrimaryButton
-              label="Continue"
-              icon={ArrowRight}
-              disabled={valueText.trim().length === 0}
-              onPress={() => answerValue(Number(valueText.trim()))}
-            />
-            <PrimaryButton label="Don't know / not available" variant="quiet" onPress={() => answerValue(null)} />
+    <ScrollView className="flex-1 bg-bg" contentContainerClassName="pb-8">
+      <PageContainer className="pt-4 gap-6">
+        <Card className="gap-4">
+          <View className="gap-1">
+            <T variant="caption" tone="muted">
+              {activeIndexCard.name} · {engine.protocol.title.toLowerCase()} · v
+              {engine.protocol.version}
+            </T>
+            <ProgressBar current={currentNum} total={totalSteps} />
           </View>
-        )}
-      </Card>
+
+          <T variant="section" className="font-medium">
+            {step.question}
+          </T>
+
+          {step.answerType === "choice" && step.options && (
+            <View className="gap-3">
+              {choiceSegments.length > 0 && choiceSegments.length <= 3 ? (
+                <SegmentedControl
+                  options={choiceSegments}
+                  onChange={(v) => answerChoice(Number(v))}
+                  className="py-2"
+                />
+              ) : (
+                step.options
+                  .slice(0, lastOptionIndex)
+                  .map((opt, i) => (
+                    <SecondaryButton
+                      key={opt.label}
+                      label={opt.label}
+                      onPress={() => answerChoice(i)}
+                      fullWidth
+                    />
+                  ))
+              )}
+              {unknownOption && (
+                <TertiaryButton
+                  label={unknownOption.label}
+                  onPress={() => answerChoice(lastOptionIndex)}
+                />
+              )}
+            </View>
+          )}
+
+          {step.answerType === "value" && (
+            <View className="gap-3">
+              <TextField
+                value={valueText}
+                onChangeText={setValueText}
+                placeholder={
+                  step.unit ? `Number of ${step.unit}` : "Enter a number"
+                }
+                keyboardType="number-pad"
+              />
+              <View className="flex-row gap-3">
+                <PrimaryButton
+                  label="Continue"
+                  icon={ArrowRight}
+                  disabled={valueText.trim().length === 0}
+                  onPress={() => answerValue(Number(valueText.trim()))}
+                  fullWidth={false}
+                />
+                <TertiaryButton
+                  label="Don't know"
+                  onPress={() => answerValue(null)}
+                />
+              </View>
+            </View>
+          )}
+        </Card>
+      </PageContainer>
     </ScrollView>
   );
 }
