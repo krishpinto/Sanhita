@@ -1,0 +1,423 @@
+{
+  "_fidelity_note": "Item-level enumeration for chest_pain/exertional_breathlessness_or_fatigue/palpitations/syncope+murmur/fever_with_joint_pains reproduces the source decision table exactly (possibility counts and modules-opened columns all match). Discriminators not given verbatim in the source (thyrotoxicosis, reflux, anaemia, TB pericarditis, pleuritis/pneumonitis, pericarditis) are Vitalis-authored, clinically reasonable, not literally sourced. The irregular_pulse and diaphoresis symptom->item mappings are Vitalis inferences (the source table gives no row for either) rather than transcribed rows. discriminator_question rephrases each discriminator as a single bedside-checkable yes/no question the doctor can answer immediately (history/exam only) -- deliberately not investigation-dependent, since the differential review happens before ECG/vitals are collected in this flow; ACS and pulmonary embolism's questions are narrowed to their bedside-checkable component only, the ECG/troponin component is confirmed by the ST-elevation hard exit and Angina's own Gate 0 immediately afterward, not by this screen.",
+  "symptoms": [
+    {
+      "id": "chest_pain",
+      "label": "Chest pain"
+    },
+    {
+      "id": "exertional_breathlessness_or_fatigue",
+      "label": "Exertional breathlessness or fatigue"
+    },
+    {
+      "id": "palpitations",
+      "label": "Palpitations"
+    },
+    {
+      "id": "irregular_pulse",
+      "label": "Irregularly irregular pulse noted on exam"
+    },
+    {
+      "id": "syncope",
+      "label": "Syncope"
+    },
+    {
+      "id": "murmur",
+      "label": "Murmur noted on exam"
+    },
+    {
+      "id": "fever_with_joint_pains",
+      "label": "Fever with joint pains"
+    },
+    {
+      "id": "diaphoresis",
+      "label": "Diaphoresis"
+    }
+  ],
+  "items": [
+    {
+      "id": "aortic_dissection",
+      "label": "Aortic dissection",
+      "tier": 1,
+      "discriminator": "Unequal or absent peripheral pulses",
+      "discriminator_question": "Unequal or absent peripheral pulses?",
+      "discriminator_input_source": "examination",
+      "module": null,
+      "exclusion_policy": "confirm",
+      "exclusion_policy_reason": "Tier 1 -- a negative examination finding makes this unlikely, not impossible. Requires one deliberate confirmation before it leaves the list.",
+      "finding": {
+        "id": "pulses_equal",
+        "supports_when": false
+      }
+    },
+    {
+      "id": "acs",
+      "label": "Acute coronary syndrome",
+      "tier": 1,
+      "discriminator": "Rest pain, dynamic ECG changes, troponin rise",
+      "discriminator_question": "Pain at rest, or unrelieved by rest?",
+      "discriminator_input_source": "history",
+      "module": null,
+      "exclusion_policy": "never",
+      "exclusion_policy_reason": "Never excluded here -- ACS is owned formally by the angina module's Gate 0.",
+      "finding": {
+        "id": "exertional_relieved_by_rest",
+        "supports_when": false
+      }
+    },
+    {
+      "id": "pulmonary_embolism",
+      "label": "Pulmonary embolism",
+      "tier": 1,
+      "discriminator": "Pleuritic pain with hypoxia, no ECG explanation",
+      "discriminator_question": "Sudden-onset pleuritic pain with breathlessness?",
+      "discriminator_input_source": "history",
+      "module": null,
+      "exclusion_policy": "confirm",
+      "exclusion_policy_reason": "Tier 1 -- a negative examination finding makes this unlikely, not impossible. Requires one deliberate confirmation before it leaves the list.",
+      "finding": {
+        "id": "pleuritic_pain",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "pneumothorax",
+      "label": "Pneumothorax",
+      "tier": 1,
+      "discriminator": "Sudden onset, reduced breath sounds, hyper-resonance",
+      "discriminator_question": "Sudden onset with reduced breath sounds on one side?",
+      "discriminator_input_source": "examination",
+      "module": null,
+      "exclusion_policy": "confirm",
+      "exclusion_policy_reason": "Tier 1 -- a negative examination finding makes this unlikely, not impossible. Requires one deliberate confirmation before it leaves the list.",
+      "finding": {
+        "id": "pleuritic_pain",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "severe_aortic_stenosis",
+      "label": "Severe aortic stenosis",
+      "tier": 1,
+      "discriminator": "Ejection murmur radiating to carotids, exertional syncope",
+      "discriminator_question": "Ejection murmur radiating to the carotids, with exertional syncope?",
+      "discriminator_input_source": "examination",
+      "module": null,
+      "exclusion_policy": "confirm",
+      "exclusion_policy_reason": "Tier 1 -- a negative examination finding makes this unlikely, not impossible. Requires one deliberate confirmation before it leaves the list.",
+      "finding": {
+        "id": "murmur",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "stable_angina",
+      "label": "Stable angina",
+      "tier": 2,
+      "discriminator": "Exertional, relieved by rest or nitrate within minutes",
+      "discriminator_question": "Exertional, relieved by rest or nitrate within minutes?",
+      "discriminator_input_source": "history",
+      "module": "angina_stable_v1",
+      "exclusion_policy": "auto",
+      "exclusion_policy_reason": "Absence of its discriminator on examination is sufficient to rule this out.",
+      "finding": {
+        "id": "exertional_relieved_by_rest",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "atrial_fibrillation",
+      "label": "Atrial fibrillation",
+      "tier": 2,
+      "discriminator": "Irregularly irregular pulse, confirmed on rhythm strip",
+      "discriminator_question": "Irregularly irregular pulse on palpation?",
+      "discriminator_input_source": "examination",
+      "module": "af_placeholder_v1",
+      "exclusion_policy": "auto",
+      "exclusion_policy_reason": "Absence of its discriminator on examination is sufficient to rule this out.",
+      "finding": {
+        "id": "irregular_pulse",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "rhd",
+      "label": "Rheumatic heart disease (established)",
+      "tier": 2,
+      "discriminator": "Known murmur or prior valve disease",
+      "discriminator_question": "Known murmur or previously diagnosed valve disease?",
+      "discriminator_input_source": "history",
+      "module": "rhd_v1",
+      "exclusion_policy": "auto",
+      "exclusion_policy_reason": "Absence of its discriminator on examination is sufficient to rule this out.",
+      "finding": {
+        "id": "murmur",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "acute_rheumatic_fever",
+      "label": "Acute rheumatic fever",
+      "tier": 2,
+      "discriminator": "Migratory polyarthritis, recent streptococcal illness",
+      "discriminator_question": "Migratory polyarthritis with a recent sore throat or scarlet fever?",
+      "discriminator_input_source": "history",
+      "module": "rhd_v1",
+      "exclusion_policy": "auto",
+      "exclusion_policy_reason": "Absence of its discriminator on examination is sufficient to rule this out.",
+      "finding": {
+        "id": "fever_with_joint_pains",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "pericarditis",
+      "label": "Pericarditis",
+      "tier": 2,
+      "discriminator": "Pleuritic, positional pain, friction rub",
+      "discriminator_question": "Pleuritic, positional pain, or a pericardial friction rub?",
+      "discriminator_input_source": "examination",
+      "module": null,
+      "exclusion_policy": "auto",
+      "exclusion_policy_reason": "Absence of its discriminator on examination is sufficient to rule this out.",
+      "finding": {
+        "id": "pleuritic_pain",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "pleuritis_or_pneumonitis",
+      "label": "Pleuritis or pneumonitis",
+      "tier": 2,
+      "discriminator": "Pleuritic pain with respiratory signs and fever",
+      "discriminator_question": "Pleuritic pain with cough, fever, or focal chest signs?",
+      "discriminator_input_source": "examination",
+      "module": null,
+      "exclusion_policy": "auto",
+      "exclusion_policy_reason": "Absence of its discriminator on examination is sufficient to rule this out.",
+      "finding": {
+        "id": "pleuritic_pain",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "tb_pericarditis",
+      "label": "TB pericarditis",
+      "tier": 2,
+      "discriminator": "Subacute course, effusion, constitutional symptoms",
+      "discriminator_question": "Subacute course with fever, weight loss, or night sweats?",
+      "discriminator_input_source": "history",
+      "module": null,
+      "exclusion_policy": "auto",
+      "exclusion_policy_reason": "Absence of its discriminator on examination is sufficient to rule this out.",
+      "finding": {
+        "id": "constitutional",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "anaemia",
+      "label": "Anaemia",
+      "tier": 3,
+      "discriminator": "Pallor, low haemoglobin, exertional symptoms without cardiac findings",
+      "discriminator_question": "Conjunctival or palmar pallor on exam?",
+      "discriminator_input_source": "examination",
+      "module": null,
+      "exclusion_policy": "never",
+      "exclusion_policy_reason": "Cannot be cleared at the bedside -- needs a haemogram.",
+      "finding": {
+        "id": "pallor",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "thyrotoxicosis",
+      "label": "Thyrotoxicosis",
+      "tier": 3,
+      "discriminator": "Tremor, weight loss, tachycardia out of proportion to activity",
+      "discriminator_question": "Tremor or weight loss with tachycardia out of proportion to activity?",
+      "discriminator_input_source": "examination",
+      "module": null,
+      "exclusion_policy": "never",
+      "exclusion_policy_reason": "Cannot be cleared at the bedside -- needs thyroid function tests.",
+      "finding": {
+        "id": "constitutional",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "musculoskeletal_or_neuralgia",
+      "label": "Musculoskeletal pain or neuralgia",
+      "tier": 3,
+      "discriminator": "Reproduced by neck or arm movement, or by respiration",
+      "discriminator_question": "Pain reproduced by movement or palpation of the chest wall?",
+      "discriminator_input_source": "examination",
+      "module": null,
+      "exclusion_policy": "auto",
+      "exclusion_policy_reason": "Absence of its discriminator on examination is sufficient to rule this out.",
+      "finding": {
+        "id": "chest_wall_reproducible",
+        "supports_when": true
+      }
+    },
+    {
+      "id": "reflux",
+      "label": "Gastro-oesophageal reflux",
+      "tier": 3,
+      "discriminator": "Related to meals or lying flat, relieved by antacids",
+      "discriminator_question": "Related to meals or lying flat, and relieved by antacids?",
+      "discriminator_input_source": "history",
+      "module": null,
+      "exclusion_policy": "never",
+      "exclusion_policy_reason": "Cannot be cleared at the bedside -- needs a treatment trial or endoscopy.",
+      "finding": {
+        "id": "reflux_pattern",
+        "supports_when": true
+      }
+    }
+  ],
+  "symptom_item_map": {
+    "chest_pain": [
+      "aortic_dissection",
+      "acs",
+      "pulmonary_embolism",
+      "pneumothorax",
+      "severe_aortic_stenosis",
+      "stable_angina",
+      "atrial_fibrillation",
+      "pericarditis",
+      "pleuritis_or_pneumonitis",
+      "tb_pericarditis",
+      "anaemia",
+      "thyrotoxicosis",
+      "musculoskeletal_or_neuralgia",
+      "reflux"
+    ],
+    "exertional_breathlessness_or_fatigue": [
+      "acs",
+      "pulmonary_embolism",
+      "severe_aortic_stenosis",
+      "stable_angina",
+      "rhd",
+      "tb_pericarditis",
+      "anaemia",
+      "thyrotoxicosis"
+    ],
+    "palpitations": [
+      "atrial_fibrillation",
+      "rhd",
+      "anaemia",
+      "thyrotoxicosis"
+    ],
+    "irregular_pulse": [
+      "atrial_fibrillation"
+    ],
+    "syncope": [
+      "pulmonary_embolism",
+      "severe_aortic_stenosis",
+      "atrial_fibrillation"
+    ],
+    "murmur": [
+      "severe_aortic_stenosis",
+      "rhd"
+    ],
+    "fever_with_joint_pains": [
+      "rhd",
+      "acute_rheumatic_fever"
+    ],
+    "diaphoresis": [
+      "acs",
+      "stable_angina"
+    ]
+  },
+  "_symptom_item_map_source": "plan/mock consult.md -- the checkbox -> possibilities table. Every row here traces to that document; do not widen a row without updating it there first.",
+  "findings": [
+    {
+      "id": "pulses_equal",
+      "question": "Are the peripheral pulses equal in both arms?",
+      "short_label": "Pulses equal in both arms",
+      "input_source": "examination",
+      "help": "Radial pulses, both sides. Add the femorals if you can.",
+      "carried_from_symptom": null,
+      "promotes_only": false
+    },
+    {
+      "id": "pleuritic_pain",
+      "question": "Is the pain worse on breathing in?",
+      "short_label": "Pleuritic pain",
+      "input_source": "history",
+      "help": "Pleuritic or positional pain. One answer settles four possibilities at once.",
+      "carried_from_symptom": null,
+      "promotes_only": false
+    },
+    {
+      "id": "constitutional",
+      "question": "Weight loss, night sweats, or fever lasting more than a week?",
+      "short_label": "Constitutional symptoms",
+      "input_source": "history",
+      "help": "The question that surfaces TB pericarditis, which a standard cardiac differential misses.",
+      "carried_from_symptom": null,
+      "promotes_only": false
+    },
+    {
+      "id": "chest_wall_reproducible",
+      "question": "Is the pain reproduced by pressing on the chest wall, or by moving the neck or arm?",
+      "short_label": "Chest wall tenderness",
+      "input_source": "examination",
+      "carried_from_symptom": null,
+      "promotes_only": false
+    },
+    {
+      "id": "exertional_relieved_by_rest",
+      "question": "Brought on by exertion, and gone within minutes of resting?",
+      "short_label": "Exertional, relieved by rest",
+      "input_source": "history",
+      "help": "'No' here also means the pain occurs at rest or is unrelieved by it, which is what keeps ACS on the list.",
+      "carried_from_symptom": null,
+      "promotes_only": false
+    },
+    {
+      "id": "murmur",
+      "question": "Murmur on auscultation?",
+      "short_label": "Murmur",
+      "input_source": "examination",
+      "carried_from_symptom": "murmur",
+      "promotes_only": false
+    },
+    {
+      "id": "irregular_pulse",
+      "question": "Irregularly irregular pulse on palpation?",
+      "short_label": "Irregularly irregular pulse",
+      "input_source": "examination",
+      "carried_from_symptom": "irregular_pulse",
+      "promotes_only": false
+    },
+    {
+      "id": "fever_with_joint_pains",
+      "question": "Fever with joint pains, or migratory joint pain after a sore throat?",
+      "short_label": "Fever with joint pains",
+      "input_source": "history",
+      "carried_from_symptom": "fever_with_joint_pains",
+      "promotes_only": false
+    },
+    {
+      "id": "pallor",
+      "question": "Conjunctival or palmar pallor?",
+      "short_label": "Pallor",
+      "input_source": "examination",
+      "help": "Optional. Pallor puts anaemia higher up the list; its absence does not take anaemia off, because only a haemogram can.",
+      "carried_from_symptom": null,
+      "promotes_only": true
+    },
+    {
+      "id": "reflux_pattern",
+      "question": "Related to meals or lying flat, and relieved by antacids?",
+      "short_label": "Reflux pattern",
+      "input_source": "history",
+      "help": "Optional. Can only move reflux up the list; clearing it needs a treatment trial or endoscopy.",
+      "carried_from_symptom": null,
+      "promotes_only": true
+    }
+  ],
+  "_findings_source": "Consolidated question set. private/context/vitalis-exclusion-engine.md: one shared finding resolves several differential items, so the doctor records ~5 observations instead of answering one question per possibility. Items whose exclusion_policy is 'never' hang off a promotes_only finding (or share one with another item) -- no examination finding can clear them, so asking is optional and their absence never removes them."
+}

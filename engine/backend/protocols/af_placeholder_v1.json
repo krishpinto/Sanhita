@@ -1,0 +1,197 @@
+{
+  "id": "af_placeholder_v1",
+  "name": "Atrial Fibrillation (placeholder)",
+  "version": "0.1",
+  "source_citation": "ICMR Standard Treatment Workflow — Atrial Fibrillation (architecture-level merge document only; field-level module spec not present in source repository).",
+  "fidelity": "reduced_fidelity_placeholder",
+  "fidelity_note": "The field-level AF spec (vitalis-af-module-spec.md) was not present in the source repository -- only an architecture-level merge document describing gates, tracks and cross-links. To avoid fabricating false clinical precision: T1/T2 report plain risk-factor counts, explicitly NOT the validated CHA2DS2-VASc / HAS-BLED point-weighted scores. No drug names or doses are given. Duration/rate-control-only branching are recorded for the physician's reference but not yet mechanically enforced by the engine. The valve-status subtree (T1a) IS mechanically enforced, shared verbatim with Module R's (RHD) valve assessment -- unknown echo status genuinely blocks the anticoagulation decision rather than defaulting silently. Treat the rest of this module's output as a rough sketch, not a validated pathway.",
+  "activation": {
+    "auto_trigger": { "==": [{ "var": "core.ecg.rhythm" }, "af"] },
+    "offer_trigger": { "in": ["af_placeholder_v1", { "var": "core.differential.surviving_modules" }] }
+  },
+  "blocks": [
+    {
+      "type": "gate",
+      "id": "gate_a_confirmation",
+      "label": "Confirm atrial fibrillation",
+      "description": "This needs a clear yes or no from the rhythm strip — there's no in-between category here.",
+      "blocking": true,
+      "fields": [
+        { "id": "af_confirmed", "label": "AF confirmed on 12-channel rhythm strip?", "field_type": "boolean", "input_source": "investigation" }
+      ],
+      "fire_when": { "==": [{ "var": "protocols.af_placeholder_v1.gate_a_confirmation.af_confirmed" }, false] },
+      "terminal_code": "AF_NOT_CONFIRMED",
+      "terminal_headline": "AF not confirmed on rhythm strip — consider prolonged rhythm monitoring. Module ends here."
+    },
+    {
+      "type": "gate",
+      "id": "gate_b_instability",
+      "label": "Check for haemodynamic instability",
+      "description": "An emergency indicator, checked before anything else.",
+      "blocking": true,
+      "fields": [
+        { "id": "hemodynamic_instability", "label": "Haemodynamic instability?", "field_type": "boolean", "input_source": "examination" }
+      ],
+      "fire_when": { "==": [{ "var": "protocols.af_placeholder_v1.gate_b_instability.hemodynamic_instability" }, true] },
+      "terminal_code": "AF_INSTABILITY_EMERGENCY",
+      "terminal_headline": "Haemodynamically unstable — cardiovert after heparinization; anticoagulation added. Manage as an emergency; module ends here."
+    },
+    {
+      "type": "gate",
+      "id": "gate_b_bleed",
+      "label": "Check for major bleeding on anticoagulation",
+      "description": "Also an emergency indicator, checked alongside instability.",
+      "blocking": true,
+      "fields": [
+        { "id": "major_bleed_on_oac", "label": "Major bleed on oral anticoagulant?", "field_type": "boolean", "input_source": "history" }
+      ],
+      "fire_when": { "==": [{ "var": "protocols.af_placeholder_v1.gate_b_bleed.major_bleed_on_oac" }, true] },
+      "terminal_code": "AF_MAJOR_BLEED_EMERGENCY",
+      "terminal_headline": "Major bleed on oral anticoagulant — stop and reverse anticoagulation. Manage as an emergency; module ends here."
+    },
+    {
+      "type": "context",
+      "id": "categorize",
+      "label": "Categorise the episode",
+      "description": "How long this has been going on, and whether a treatment strategy is already decided.",
+      "fields": [
+        {
+          "id": "duration_category",
+          "label": "Duration",
+          "field_type": "single_select",
+          "input_source": "history",
+          "options": [
+            { "value": "paroxysmal", "label": "Paroxysmal" },
+            { "value": "persistent", "label": "Persistent" },
+            { "value": "permanent", "label": "Permanent" },
+            { "value": "unknown", "label": "Unknown" }
+          ]
+        },
+        { "id": "rate_control_only", "label": "Rate-control-only strategy already decided?", "field_type": "boolean", "input_source": "clinical_judgement" }
+      ]
+    },
+    {
+      "type": "track_group",
+      "id": "af_tracks",
+      "label": "Assessment tracks",
+      "tracks": [
+        {
+          "id": "t1a_valve_assessment",
+          "label": "Valve assessment",
+          "description": "Checked before deciding on anticoagulation — an unknown valve status blocks that decision rather than defaulting to a drug. Shared with the RHD module, so it's only asked once.",
+          "mode": "decision_table",
+          "fields": [
+            { "id": "echo_status", "label": "Echocardiogram", "field_type": "single_select", "source": "shared", "shared_path": "echo_status" },
+            {
+              "id": "mitral_stenosis_severity", "label": "Mitral stenosis severity", "field_type": "single_select",
+              "source": "shared", "shared_path": "mitral_stenosis_severity",
+              "skip_when": { "!=": [{ "var": "shared.echo_status" }, "lesions_present"] }
+            },
+            {
+              "id": "prosthetic_valve", "label": "Prosthetic valve", "field_type": "single_select",
+              "source": "shared", "shared_path": "prosthetic_valve",
+              "skip_when": {
+                "or": [
+                  { "!=": [{ "var": "shared.echo_status" }, "lesions_present"] },
+                  { "in": [{ "var": "shared.mitral_stenosis_severity" }, ["moderate_or_severe", "not_graded"]] }
+                ]
+              }
+            }
+          ],
+          "decision_rows": [
+            { "when": { "==": [{ "var": "shared.echo_status" }, "not_performed"] }, "label": "blocked_echo_not_performed" },
+            { "when": { "==": [{ "var": "shared.echo_status" }, "no_significant_lesion"] }, "label": "doac_eligible" },
+            { "when": { "==": [{ "var": "shared.mitral_stenosis_severity" }, "not_graded"] }, "label": "blocked_ms_not_graded" },
+            { "when": { "==": [{ "var": "shared.mitral_stenosis_severity" }, "moderate_or_severe"] }, "label": "vka_hard_block_doac" },
+            { "when": { "==": [{ "var": "shared.prosthetic_valve" }, "mechanical"] }, "label": "vka_hard_block_doac" },
+            { "when": true, "label": "doac_eligible" }
+          ]
+        },
+        {
+          "id": "t1_anticoagulation",
+          "label": "Anticoagulation — risk factors",
+          "description": "A plain count of risk factors, not the validated CHA₂DS₂-VASc score — that scoring detail wasn't available in the source material, so treat this as a rough indicator, not the real score.",
+          "mode": "checklist_score",
+          "fields": [
+            { "id": "age_75_or_older", "label": "Age 75 or older", "field_type": "boolean", "input_source": "history" },
+            { "id": "hypertension", "label": "Hypertension", "field_type": "boolean", "source": "shared", "shared_path": "htn_dx" },
+            { "id": "diabetes", "label": "Diabetes mellitus", "field_type": "boolean", "source": "shared", "shared_path": "diabetes" },
+            { "id": "chf_or_lv_dysfunction", "label": "CHF or LV dysfunction", "field_type": "boolean", "source": "shared", "shared_path": "chf" },
+            { "id": "prior_stroke", "label": "Prior stroke", "field_type": "boolean", "source": "shared", "shared_path": "stroke" },
+            { "id": "prior_tia", "label": "Prior TIA", "field_type": "boolean", "source": "shared", "shared_path": "tia_only" },
+            { "id": "vascular_disease", "label": "Vascular disease", "field_type": "boolean", "source": "shared", "shared_path": "vascular_disease" }
+          ]
+        },
+        {
+          "id": "t2_bleeding_risk",
+          "label": "Bleeding risk",
+          "description": "For your awareness only — it never changes the anticoagulation decision above.",
+          "mode": "checklist_score",
+          "fields": [
+            { "id": "hypertension_uncontrolled", "label": "Hypertension uncontrolled", "field_type": "boolean", "source": "shared", "shared_path": "htn_uncontrolled" },
+            { "id": "ckd", "label": "Chronic kidney disease", "field_type": "boolean", "source": "shared", "shared_path": "ckd" },
+            { "id": "hepatic_impairment", "label": "Significant hepatic impairment", "field_type": "boolean", "source": "shared", "shared_path": "hepatic" },
+            { "id": "prior_major_bleed", "label": "Prior major bleed", "field_type": "boolean", "input_source": "history" },
+            { "id": "labile_inr_or_interacting_factors", "label": "Labile INR, interacting drugs, or alcohol use", "field_type": "boolean", "input_source": "history" }
+          ]
+        },
+        {
+          "id": "t3_rate_control",
+          "label": "Rate control",
+          "description": "Based on the recorded heart rate from vitals.",
+          "mode": "numeric_thresholds",
+          "fields": [],
+          "numeric_thresholds": [
+            { "when": { "<": [{ "var": "core.vitals.hr" }, 50] }, "label": "Emergency — heart rate under 50", "flag": "emergency" },
+            { "when": { "<": [{ "var": "core.vitals.hr" }, 60] }, "label": "Prescribing caution — relative bradycardia", "flag": "caution" },
+            { "when": { ">": [{ "var": "core.vitals.hr" }, 110] }, "label": "Rate control indicated — heart rate over 110", "flag": "info" },
+            { "when": { ">=": [{ "var": "core.vitals.hr" }, 0] }, "label": "Heart rate reviewed — no rate-control flag", "flag": "info" }
+          ]
+        },
+        {
+          "id": "t4_rhythm_control_substrate",
+          "label": "Rhythm control",
+          "description": "Which agent is appropriate depends on the underlying heart substrate.",
+          "mode": "single_choice",
+          "fields": [
+            {
+              "id": "substrate",
+              "label": "Underlying heart substrate",
+              "field_type": "single_select",
+              "input_source": "clinical_judgement",
+              "options": [
+                { "value": "normal_heart", "label": "Normal heart" },
+                { "value": "chf", "label": "CHF" },
+                { "value": "cad_or_lvh", "label": "CAD or LVH" }
+              ],
+              "prefill": {
+                "source_path": "protocols.angina_stable_v1.tracks.track_a.resolution",
+                "value_map": { "typical": "cad_or_lvh", "atypical": "cad_or_lvh", "non_anginal": "normal_heart" },
+                "default": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "terminal_table",
+      "id": "terminal_resolution",
+      "label": "Module completion",
+      "rows": [
+        {
+          "when": {
+            "and": [
+              { "!=": [{ "var": "protocols.af_placeholder_v1.tracks.t1a_valve_assessment.resolution" }, null] },
+              { "!=": [{ "var": "protocols.af_placeholder_v1.tracks.t1_anticoagulation.resolution" }, null] },
+              { "!=": [{ "var": "protocols.af_placeholder_v1.tracks.t2_bleeding_risk.resolution" }, null] },
+              { "!=": [{ "var": "protocols.af_placeholder_v1.tracks.t4_rhythm_control_substrate.resolution" }, null] }
+            ]
+          },
+          "code": "AF_TRACKS_ASSESSED",
+          "headline": "Atrial fibrillation confirmed — anticoagulation, bleeding risk, rate control and rhythm-control substrate assessed below. This module does not synthesize a single recommendation; review each track for clinical correlation."
+        }
+      ]
+    }
+  ]
+}

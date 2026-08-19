@@ -1,0 +1,466 @@
+{
+  "id": "angina_stable_v1",
+  "name": "Stable Angina",
+  "version": "1.0",
+  "source_citation": "ICMR Standard Treatment Workflow — Stable Angina, ICD-11-BA40.1, January 2026. Department of Health Research, MoHFW, Government of India.",
+  "fidelity": "full",
+  "activation": {
+    "offer_trigger": {
+      "or": [
+        { "in": ["angina_stable_v1", { "var": "core.differential.surviving_modules" }] },
+        { "==": [{ "var": "core.ecg.q_waves" }, true] },
+        { "==": [{ "var": "core.ecg.st_t_changes" }, true] }
+      ]
+    }
+  },
+  "blocks": [
+    {
+      "type": "gate",
+      "id": "gate0_acs_exit",
+      "label": "Rule out acute coronary syndrome",
+      "description": "Checked first, before anything else — any positive answer ends this questionnaire and hands off to the ACS pathway instead.",
+      "blocking": true,
+      "fields": [
+        {
+          "id": "duration",
+          "label": "Longest single episode of chest discomfort",
+          "field_type": "single_select",
+          "input_source": "history",
+          "options": [
+            { "value": "under_1_min", "label": "Under 1 minute" },
+            { "value": "1_to_20_min", "label": "1–20 minutes" },
+            { "value": "over_20_min", "label": "Over 20 minutes" },
+            { "value": "hours_to_days", "label": "Hours to days" }
+          ]
+        },
+        {
+          "id": "rest_pain",
+          "label": "Does the pain occur at rest?",
+          "field_type": "boolean",
+          "input_source": "history"
+        },
+        {
+          "id": "g02",
+          "label": "Known stable angina, recently worsened (crescendo) to CCS class III?",
+          "field_type": "boolean",
+          "input_source": "history"
+        },
+        {
+          "id": "g03",
+          "label": "New-onset effort angina, under 1 month duration, at CCS class II or III?",
+          "field_type": "boolean",
+          "input_source": "history"
+        },
+        {
+          "id": "g04",
+          "label": "Prior myocardial infarction, with angina since?",
+          "field_type": "boolean",
+          "input_source": "history"
+        }
+      ],
+      "fire_when": {
+        "or": [
+          { "==": [{ "var": "protocols.angina_stable_v1.gate0_acs_exit.rest_pain" }, true] },
+          { "==": [{ "var": "protocols.angina_stable_v1.gate0_acs_exit.duration" }, "over_20_min"] },
+          { "==": [{ "var": "protocols.angina_stable_v1.gate0_acs_exit.g02" }, true] },
+          { "==": [{ "var": "protocols.angina_stable_v1.gate0_acs_exit.g03" }, true] },
+          { "==": [{ "var": "protocols.angina_stable_v1.gate0_acs_exit.g04" }, true] }
+        ]
+      },
+      "terminal_code": "ACS_SUSPECTED",
+      "terminal_headline": "ACS suspected — stop here. Refer to the STEMI / NSTEMI Standard Treatment Workflow. Track A, Track B and the investigation ladder do not run."
+    },
+    {
+      "type": "derived_tags",
+      "id": "derived_negative_features",
+      "label": "Negative features (derived, display-only — never subtract from Track A resolution)",
+      "tags": [
+        {
+          "id": "N1",
+          "label": "Episode duration under 1 minute, or hours to days",
+          "condition": {
+            "or": [
+              { "==": [{ "var": "protocols.angina_stable_v1.gate0_acs_exit.duration" }, "under_1_min"] },
+              { "==": [{ "var": "protocols.angina_stable_v1.gate0_acs_exit.duration" }, "hours_to_days"] }
+            ]
+          }
+        },
+        {
+          "id": "N2",
+          "label": "Pain localized to a single point",
+          "condition": { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A1_quality_site" }, "finger_point"] }
+        },
+        {
+          "id": "N3",
+          "label": "Pricking or stabbing character",
+          "condition": { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A1_quality_site" }, "pricking_stabbing"] }
+        },
+        {
+          "id": "N4",
+          "label": "Restricted to areas above the jaw or below the epigastrium",
+          "condition": {
+            "or": [
+              { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A1_quality_site" }, "above_jaw"] },
+              { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A1_quality_site" }, "below_epigastrium"] }
+            ]
+          }
+        },
+        {
+          "id": "N5",
+          "label": "Variable location or character between episodes",
+          "condition": { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A1_quality_site" }, "variable"] }
+        },
+        {
+          "id": "N6",
+          "label": "Precipitated by neck/arm movement or respiration",
+          "condition": { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A2_provocation" }, "neck_arm_or_respiration"] }
+        }
+      ]
+    },
+    {
+      "type": "track_group",
+      "id": "classical_and_equivalent_tracks",
+      "label": "Track A and Track B — run in parallel, equal visual weight, neither a fallback of the other",
+      "tracks": [
+        {
+          "id": "track_a",
+          "label": "Chest pain characteristics",
+          "description": "Quality, what brings it on, what relieves it — assessed alongside exertional symptoms below, at equal weight.",
+          "mode": "axis_count",
+          "resolution_rule": {
+            "type": "positive_axis_count",
+            "thresholds": [
+              { "min_positive": 3, "label": "typical" },
+              { "min_positive": 2, "label": "atypical" },
+              { "min_positive": 0, "label": "non_anginal" }
+            ]
+          },
+          "fields": [
+            {
+              "id": "A1_quality_site",
+              "label": "Quality and site",
+              "field_type": "single_select",
+              "options": [
+                { "value": "diffuse_retrosternal", "label": "Diffuse retrosternal — heaviness, constriction or pressure" },
+                { "value": "finger_point", "label": "Localized to a point" },
+                { "value": "pricking_stabbing", "label": "Pricking or stabbing" },
+                { "value": "above_jaw", "label": "Restricted to areas above the jaw" },
+                { "value": "below_epigastrium", "label": "Restricted to areas below the epigastrium" },
+                { "value": "variable", "label": "Variable in location or character between episodes" }
+              ],
+              "value_scoring": {
+                "diffuse_retrosternal": "positive",
+                "finger_point": "negative",
+                "pricking_stabbing": "negative",
+                "above_jaw": "negative",
+                "below_epigastrium": "negative",
+                "variable": "negative"
+              }
+            },
+            {
+              "id": "A2_provocation",
+              "label": "What brings it on?",
+              "field_type": "single_select",
+              "options": [
+                { "value": "exertion_predictable", "label": "Exertion or emotional stress, at a predictable threshold" },
+                { "value": "exertion_unpredictable", "label": "Exertion, but threshold varies" },
+                { "value": "rest_only", "label": "At rest only" },
+                { "value": "neck_arm_or_respiration", "label": "Movement of neck or arms, or respiration" },
+                { "value": "no_trigger", "label": "No clear trigger" }
+              ],
+              "value_scoring": {
+                "exertion_predictable": "positive",
+                "exertion_unpredictable": "partial_negative",
+                "rest_only": "negative",
+                "neck_arm_or_respiration": "negative",
+                "no_trigger": "negative"
+              }
+            },
+            {
+              "id": "A3_relief",
+              "label": "What relieves it?",
+              "field_type": "single_select",
+              "skip_when": {
+                "or": [
+                  {
+                    "and": [
+                      { "in": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A1_quality_site" }, ["above_jaw", "below_epigastrium", "finger_point"]] },
+                      { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A2_provocation" }, "neck_arm_or_respiration"] }
+                    ]
+                  },
+                  {
+                    "and": [
+                      { "==": [{ "var": "protocols.angina_stable_v1.derived_negative_features.N1" }, true] },
+                      { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A2_provocation" }, "no_trigger"] }
+                    ]
+                  }
+                ]
+              },
+              "options": [
+                { "value": "rest_or_ntg_1_2min", "label": "Rest or sublingual nitrate, within 1–2 minutes" },
+                { "value": "relief_over_10min", "label": "Relief, but takes longer than 10 minutes" },
+                { "value": "no_relief", "label": "No relief" },
+                { "value": "not_tried", "label": "Not tried / not known" }
+              ],
+              "value_scoring": {
+                "rest_or_ntg_1_2min": "positive",
+                "relief_over_10min": "negative",
+                "no_relief": "negative",
+                "not_tried": "unknown"
+              }
+            }
+          ],
+          "display_fields": [
+            {
+              "id": "A1b_radiation",
+              "label": "Radiation",
+              "field_type": "multi_select",
+              "required": false,
+              "options": [
+                { "value": "arm", "label": "Arm" },
+                { "value": "neck", "label": "Neck" },
+                { "value": "back", "label": "Back" },
+                { "value": "none", "label": "None" }
+              ]
+            },
+            {
+              "id": "A2b_post_prandial",
+              "label": "Is it more easily provoked by exertion after meals?",
+              "field_type": "boolean",
+              "required": false,
+              "skip_when": {
+                "and": [
+                  { "in": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A1_quality_site" }, ["above_jaw", "below_epigastrium", "finger_point"]] },
+                  { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.A2_provocation" }, "neck_arm_or_respiration"] }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "track_b",
+          "label": "Exertional symptoms",
+          "description": "Asked of every patient, regardless of chest pain — this is how ischaemia is caught without classic chest pain, especially in diabetics, women, and the elderly.",
+          "mode": "any_true",
+          "fields": [
+            { "id": "B1_fatigue", "label": "Exertional fatigue disproportionate to the activity?", "field_type": "boolean" },
+            { "id": "B2_breathlessness", "label": "Exertional breathlessness without a respiratory explanation?", "field_type": "boolean" },
+            { "id": "B3_sweating", "label": "Profuse sweating on exertion?", "field_type": "boolean" },
+            { "id": "B4_epigastric", "label": "Epigastric discomfort brought on by exertion?", "field_type": "boolean" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "id": "context",
+      "label": "Risk factors",
+      "description": "Shown alongside the result for context — none of these change the routing outcome above.",
+      "fields": [
+        { "id": "known_cad", "label": "Known coronary artery disease", "field_type": "boolean", "source": "shared", "shared_path": "known_cad" },
+        { "id": "diabetes", "label": "Diabetes mellitus", "field_type": "boolean", "source": "shared", "shared_path": "diabetes" },
+        { "id": "hypertension", "label": "Hypertension", "field_type": "boolean", "source": "shared", "shared_path": "htn_dx" },
+        { "id": "current_smoker", "label": "Current smoker", "field_type": "boolean", "source": "shared", "shared_path": "current_smoker" },
+        { "id": "dyslipidaemia", "label": "Dyslipidaemia", "field_type": "boolean" },
+        { "id": "family_history_cad", "label": "Family history of premature CAD", "field_type": "boolean" }
+      ]
+    },
+    {
+      "type": "terminal_table",
+      "id": "terminal_resolution",
+      "label": "Output resolution",
+      "rows": [
+        {
+          "when": { "in": [{ "var": "protocols.angina_stable_v1.tracks.track_a.resolution" }, ["typical", "atypical"]] },
+          "code": "T2",
+          "headline": "Angina likely — proceed with stable angina pathway"
+        },
+        {
+          "when": {
+            "and": [
+              { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.resolution" }, "non_anginal"] },
+              { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_b.resolution" }, "positive"] }
+            ]
+          },
+          "code": "T3",
+          "headline": "Possible ischemic equivalent — proceed with stable angina pathway"
+        },
+        {
+          "when": {
+            "and": [
+              { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.resolution" }, "non_anginal"] },
+              { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_b.resolution" }, "negative"] },
+              { "==": [{ "var": "protocols.angina_stable_v1.context.known_cad" }, true] }
+            ]
+          },
+          "code": "T4",
+          "headline": "Features not consistent, but known CAD — clinical correlation advised"
+        },
+        {
+          "when": {
+            "and": [
+              { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_a.resolution" }, "non_anginal"] },
+              { "==": [{ "var": "protocols.angina_stable_v1.tracks.track_b.resolution" }, "negative"] },
+              { "==": [{ "var": "protocols.angina_stable_v1.context.known_cad" }, false] }
+            ]
+          },
+          "code": "T5",
+          "headline": "Features not consistent with angina — essential investigations still indicated"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "id": "potentiating_factors",
+      "label": "Factors that could be driving the angina",
+      "description": "Checked before escalating drug therapy — correcting one of these may control symptoms without needing more medication.",
+      "render_hint": "flag_positive",
+      "fields": [
+        { "id": "anaemia", "label": "Anaemia", "field_type": "boolean" },
+        { "id": "thyrotoxicosis", "label": "Thyrotoxicosis", "field_type": "boolean" },
+        { "id": "pregnancy", "label": "Pregnancy", "field_type": "boolean" },
+        { "id": "febrile_illness", "label": "Febrile illness", "field_type": "boolean" },
+        { "id": "uncontrolled_htn", "label": "Uncontrolled hypertension", "field_type": "boolean", "source": "shared", "shared_path": "htn_uncontrolled" },
+        { "id": "lvh", "label": "LVH", "field_type": "boolean" },
+        { "id": "chf", "label": "CHF", "field_type": "boolean", "source": "shared", "shared_path": "chf" },
+        { "id": "arrhythmia", "label": "Arrhythmia", "field_type": "boolean" },
+        { "id": "bronchodilators_or_steroids", "label": "On bronchodilators or steroids", "field_type": "boolean" }
+      ]
+    },
+    {
+      "type": "context",
+      "id": "interlock_screen",
+      "label": "Prescribing safety screen",
+      "description": "Added by Vitalis, not part of the original ICMR workflow — screens for reasons to avoid specific drugs in the recommendations below.",
+      "render_hint": "plain",
+      "fields": [
+        {
+          "id": "asthma_or_bronchospastic_copd", "label": "Asthma or bronchospastic COPD", "field_type": "boolean",
+          "vitalis_addition": true, "vitalis_addition_reason": "Not in ICMR source — added by Vitalis: beta-blockade may precipitate bronchospasm"
+        },
+        {
+          "id": "bradycardia_or_high_grade_avb", "label": "Bradycardia (HR <60) or high-grade AV block", "field_type": "boolean",
+          "vitalis_addition": true, "vitalis_addition_reason": "Not in ICMR source — added by Vitalis: additive negative chronotropic/dromotropic effect"
+        },
+        {
+          "id": "ckd_or_hyperkalaemia", "label": "Hyperkalaemia or significant renal impairment", "field_type": "boolean",
+          "vitalis_addition": true, "vitalis_addition_reason": "Not in ICMR source — added by Vitalis: hyperkalaemia risk, further eGFR decline"
+        },
+        {
+          "id": "pde5_inhibitor_recent", "label": "PDE5 inhibitor within 24–48h", "field_type": "boolean",
+          "vitalis_addition": true, "vitalis_addition_reason": "Not in ICMR source — added by Vitalis: risk of profound hypotension"
+        },
+        {
+          "id": "severe_aortic_stenosis", "label": "Suspected severe aortic stenosis", "field_type": "boolean",
+          "vitalis_addition": true, "vitalis_addition_reason": "Not in ICMR source — added by Vitalis: preload reduction may precipitate syncope"
+        }
+      ]
+    },
+    {
+      "type": "drug_recommendation",
+      "id": "step2_drugs",
+      "label": "Recommended medications",
+      "description": "Filtered by everything answered above. Some may be struck through with a specific reason to avoid them — they're never silently removed from the list.",
+      "entries": [
+        {
+          "id": "aspirin", "name": "Aspirin", "dose": "75 mg OD", "group_label": "Secondary prevention — all patients",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3", "T4"]] }
+        },
+        {
+          "id": "clopidogrel", "name": "Clopidogrel", "dose": "75 mg OD", "group_label": "Secondary prevention — all patients",
+          "note": "Only if aspirin-intolerant.",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3", "T4"]] }
+        },
+        {
+          "id": "atorvastatin", "name": "Atorvastatin", "dose": "40–80 mg OD", "group_label": "Secondary prevention — all patients",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3", "T4"]] }
+        },
+        {
+          "id": "rosuvastatin", "name": "Rosuvastatin", "dose": "20–40 mg OD", "group_label": "Secondary prevention — all patients",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3", "T4"]] }
+        },
+        {
+          "id": "ramipril", "name": "Ramipril", "dose": "2.5–10 mg OD", "group_label": "Secondary prevention — all patients",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3", "T4"]] },
+          "interlocks": [
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.ckd_or_hyperkalaemia" }, true] }, "state": "block", "reason": "Hyperkalaemia risk, further eGFR decline" },
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.potentiating_factors.pregnancy" }, true] }, "state": "block", "reason": "ACE inhibitors are fetotoxic" }
+          ]
+        },
+        {
+          "id": "enalapril", "name": "Enalapril", "dose": "2.5–10 mg BD", "group_label": "Secondary prevention — all patients",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3", "T4"]] },
+          "interlocks": [
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.ckd_or_hyperkalaemia" }, true] }, "state": "block", "reason": "Hyperkalaemia risk, further eGFR decline" },
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.potentiating_factors.pregnancy" }, true] }, "state": "block", "reason": "ACE inhibitors are fetotoxic" }
+          ]
+        },
+        {
+          "id": "ticagrelor", "name": "Ticagrelor", "dose": "90 mg BD", "group_label": "Secondary prevention — all patients",
+          "quarantine_reason": "90 mg BD is DAPT dosing belonging to the post-PCI context named in the revascularization box, not primary anti-platelet therapy for stable angina. The source lists it unconditioned alongside aspirin/clopidogrel — quarantined here rather than resolving the ambiguity silently.",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3", "T4"]] }
+        },
+        {
+          "id": "metoprolol", "name": "Metoprolol", "dose": "25–100 mg BD (short) / 25–100 mg OD (long)", "group_label": "Anti-ischemic, first line",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] },
+          "interlocks": [
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.asthma_or_bronchospastic_copd" }, true] }, "state": "block", "reason": "Beta-blockade may precipitate bronchospasm" },
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.bradycardia_or_high_grade_avb" }, true] }, "state": "block", "reason": "Additive negative chronotropic/dromotropic effect" }
+          ]
+        },
+        {
+          "id": "amlodipine", "name": "Amlodipine", "dose": "5–10 mg OD", "group_label": "Anti-ischemic, first line",
+          "note": "DHP CCB — combinable with a beta-blocker (see NN6).",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] }
+        },
+        {
+          "id": "ismn", "name": "Isosorbide mononitrate", "dose": "20–60 mg in 2 divided doses", "group_label": "Add if uncontrolled",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] },
+          "interlocks": [
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.pde5_inhibitor_recent" }, true] }, "state": "block", "reason": "Risk of profound hypotension" },
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.severe_aortic_stenosis" }, true] }, "state": "block", "reason": "Preload reduction may precipitate syncope" }
+          ]
+        },
+        {
+          "id": "ntg_sr", "name": "Nitroglycerine SR", "dose": "2.6–6.5 mg BD", "group_label": "Add if uncontrolled",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] },
+          "interlocks": [
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.pde5_inhibitor_recent" }, true] }, "state": "block", "reason": "Risk of profound hypotension" },
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.severe_aortic_stenosis" }, true] }, "state": "block", "reason": "Preload reduction may precipitate syncope" }
+          ]
+        },
+        {
+          "id": "verapamil", "name": "Verapamil", "dose": "40–80 mg TDS", "group_label": "Non-DHP CCB — hazard group",
+          "note": "Hazard — not to be combined with a beta-blocker (see NN6). Listed here because the source lists it flat; the source's own management box specifies DHP only.",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] },
+          "interlocks": [
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.bradycardia_or_high_grade_avb" }, true] }, "state": "block", "reason": "Additive negative chronotropic/dromotropic effect" }
+          ]
+        },
+        {
+          "id": "diltiazem", "name": "Diltiazem", "dose": "30–90 mg TDS", "group_label": "Non-DHP CCB — hazard group",
+          "note": "Hazard — not to be combined with a beta-blocker (see NN6). Listed here because the source lists it flat; the source's own management box specifies DHP only.",
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] },
+          "interlocks": [
+            { "condition": { "==": [{ "var": "protocols.angina_stable_v1.interlock_screen.bradycardia_or_high_grade_avb" }, true] }, "state": "block", "reason": "Additive negative chronotropic/dromotropic effect" }
+          ]
+        },
+        {
+          "id": "trimetazidine", "name": "Trimetazidine", "dose": "20 mg TDS", "group_label": "Tertiary tier only",
+          "tiers": ["tertiary"],
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] }
+        },
+        {
+          "id": "nicorandil", "name": "Nicorandil", "dose": "5–10 mg BD", "group_label": "Tertiary tier only",
+          "tiers": ["tertiary"],
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] }
+        },
+        {
+          "id": "ranolazine", "name": "Ranolazine", "dose": "500–1000 mg BD", "group_label": "Tertiary tier only",
+          "tiers": ["tertiary"],
+          "applicable_when": { "in": [{ "var": "protocols.angina_stable_v1.terminal_resolution.code" }, ["T2", "T3"]] }
+        }
+      ]
+    }
+  ]
+}

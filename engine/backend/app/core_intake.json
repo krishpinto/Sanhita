@@ -1,0 +1,144 @@
+{
+  "steps": [
+    {
+      "id": "facility_tier_step",
+      "label": "Facility tier",
+      "description": "Sets which drugs and investigations show as available for the rest of this session.",
+      "fields": [
+        {
+          "id": "facility_tier",
+          "label": "What level of facility is this?",
+          "field_type": "single_select",
+          "input_source": "clinical_judgement",
+          "options": [
+            { "value": "phc", "label": "PHC / CHC" },
+            { "value": "district", "label": "District hospital" },
+            { "value": "tertiary", "label": "Tertiary centre" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "patient_details",
+      "label": "Patient details",
+      "description": "Basic identifying information.",
+      "fields": [
+        { "id": "name", "label": "Patient name", "field_type": "text", "input_source": "history" },
+        { "id": "age", "label": "Age", "field_type": "number", "input_source": "history" },
+        {
+          "id": "sex",
+          "label": "Sex",
+          "field_type": "single_select",
+          "input_source": "history",
+          "options": [
+            { "value": "M", "label": "Male" },
+            { "value": "F", "label": "Female" },
+            { "value": "Other", "label": "Other" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "symptoms_step",
+      "label": "Symptoms and signs",
+      "description": "Record what's present. Select as many as apply — don't pick the one you suspect matters most; the system works out what's relevant from the full set.",
+      "fields": [
+        {
+          "id": "symptoms",
+          "label": "What is present?",
+          "field_type": "multi_select",
+          "input_source": "history",
+          "description": "Select all that apply — it is never just one chief complaint.",
+          "options": [
+            { "value": "chest_pain", "label": "Chest pain" },
+            { "value": "exertional_breathlessness_or_fatigue", "label": "Exertional breathlessness or fatigue" },
+            { "value": "palpitations", "label": "Palpitations" },
+            { "value": "irregular_pulse", "label": "Irregularly irregular pulse noted on exam" },
+            { "value": "syncope", "label": "Syncope" },
+            { "value": "murmur", "label": "Murmur noted on exam" },
+            { "value": "fever_with_joint_pains", "label": "Fever with joint pains" },
+            { "value": "diaphoresis", "label": "Diaphoresis" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ecg_step",
+      "label": "ECG",
+      "description": "Every finding is asked regardless of the presenting symptom — a rhythm abnormality found here can open a module on its own, even if nothing in the history pointed to it.",
+      "fields": [
+        {
+          "id": "ecg",
+          "label": "ECG findings",
+          "field_type": "structured_ecg",
+          "input_source": "investigation",
+          "description": "Enter what the tracing shows. If it hasn't been reviewed yet, say so below rather than leaving findings unticked — an unreviewed ECG is treated as unknown, not normal.",
+          "sub_fields": [
+            {
+              "id": "availability",
+              "label": "Has the ECG been performed and reviewed?",
+              "field_type": "single_select",
+              "options": [
+                { "value": "performed_reviewed", "label": "Performed and reviewed" },
+                { "value": "performed_pending", "label": "Performed, not yet available or not interpretable" },
+                { "value": "not_performed", "label": "Not performed" }
+              ]
+            },
+            {
+              "id": "rhythm",
+              "label": "Rhythm",
+              "field_type": "single_select",
+              "required": false,
+              "options": [
+                { "value": "normal_sinus", "label": "Normal sinus rhythm" },
+                { "value": "af", "label": "Atrial fibrillation" },
+                { "value": "other_arrhythmia", "label": "Other arrhythmia" },
+                { "value": "unknown", "label": "Unknown / not interpretable" }
+              ]
+            },
+            { "id": "rate", "label": "Ventricular rate (bpm)", "field_type": "number", "required": false },
+            { "id": "q_waves", "label": "Q waves", "field_type": "boolean", "required": false },
+            { "id": "st_t_changes", "label": "ST-T changes", "field_type": "boolean", "required": false },
+            { "id": "st_elevation", "label": "ST elevation", "field_type": "boolean", "required": false },
+            { "id": "bbb", "label": "Bundle branch block", "field_type": "boolean", "required": false },
+            { "id": "chamber_enlargement", "label": "Chamber enlargement", "field_type": "boolean", "required": false },
+            { "id": "pre_excitation", "label": "Pre-excitation", "field_type": "boolean", "required": false },
+            {
+              "id": "qt_interval",
+              "label": "QT interval",
+              "field_type": "single_select",
+              "required": false,
+              "options": [
+                { "value": "normal", "label": "Normal" },
+                { "value": "prolonged", "label": "Prolonged" },
+                { "value": "unknown", "label": "Unknown" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vitals_step",
+      "label": "Vitals",
+      "description": "Optional, but heart rate specifically drives rate-control thresholds later if AF is confirmed.",
+      "fields": [
+        {
+          "id": "vitals",
+          "label": "Vitals",
+          "field_type": "structured_vitals",
+          "required": false,
+          "input_source": "examination",
+          "sub_fields": [
+            { "id": "hr", "label": "Heart rate (bpm)", "field_type": "number", "required": false },
+            { "id": "bp_systolic", "label": "BP systolic (mmHg)", "field_type": "number", "required": false },
+            { "id": "bp_diastolic", "label": "BP diastolic (mmHg)", "field_type": "number", "required": false },
+            { "id": "spo2", "label": "SpO2 (%)", "field_type": "number", "required": false },
+            { "id": "temp", "label": "Temperature (°C)", "field_type": "number", "required": false },
+            { "id": "rr", "label": "Respiratory rate (/min)", "field_type": "number", "required": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

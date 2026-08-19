@@ -1,0 +1,346 @@
+{
+  "id": "rhd_v1",
+  "name": "Rheumatic Heart Disease",
+  "version": "1.0",
+  "source_citation": "Revised Jones Criteria 2015 · DGHS Handbook on Prevention and Control of Rheumatic Fever and RHD, Government of India, 2015. No current ICMR Standard Treatment Workflow exists for chronic RHD.",
+  "fidelity": "full",
+  "fidelity_note": "Sourced from the Revised Jones Criteria 2015 and the DGHS Handbook rather than an ICMR STW — no such workflow currently exists for chronic RHD, so this module is a Vitalis addition throughout, not a digitization of an existing government pathway. High-risk-population thresholds are used throughout (monoarthritis counts as a major criterion, fever ≥38°C, ESR ≥30), per the source's explicit guidance for the Indian population.",
+  "activation": {
+    "offer_trigger": { "in": ["rhd_v1", { "var": "core.differential.surviving_modules" }] }
+  },
+  "blocks": [
+    {
+      "type": "context",
+      "id": "presentation_router",
+      "label": "Which presentation is this?",
+      "description": "Rheumatic disease shows up two different ways — pick the one that matches this patient.",
+      "render_hint": "plain",
+      "fields": [
+        {
+          "id": "presentation",
+          "label": "Rheumatic disease has two faces — which is this?",
+          "input_source": "clinical_judgement",
+          "field_type": "single_select",
+          "options": [
+            { "value": "acute_rheumatic_fever_suspected", "label": "Suspected ACUTE rheumatic fever" },
+            { "value": "established_valve_disease", "label": "Established valve disease" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "track_group",
+      "id": "jones_assessment",
+      "label": "Jones criteria",
+      "description": "Using thresholds for high-risk populations — a lower-risk table would under-diagnose acute rheumatic fever here.",
+      "tracks": [
+        {
+          "id": "jones_criteria",
+          "label": "Jones criteria",
+          "mode": "decision_table",
+          "fields": [
+            { "id": "carditis", "label": "Carditis (clinical or subclinical on echo)", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "arthritis", "label": "Arthritis — polyarthritis, or monoarthritis/polyarthralgia in this high-risk population", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "chorea", "label": "Chorea", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "subcutaneous_nodules", "label": "Subcutaneous nodules", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "erythema_marginatum", "label": "Erythema marginatum", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "monoarthralgia", "label": "Monoarthralgia (minor — only if arthritis not already counted as major)", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "fever_ge_38", "label": "Fever ≥38°C", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "esr_ge_30_or_crp_ge_3", "label": "ESR ≥30 mm/hr or CRP ≥3 mg/dL", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "prolonged_pr_interval", "label": "Prolonged PR interval (minor — not counted if carditis already major)", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } },
+            { "id": "recurrent_episode", "label": "Recurrent episode (prior documented ARF/RHD)", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] } }
+          ],
+          "decision_rows": [
+            {
+              "when": { "!=": [{ "var": "protocols.rhd_v1.presentation_router.presentation" }, "acute_rheumatic_fever_suspected"] },
+              "label": "not_applicable_established_valve_disease"
+            },
+            {
+              "when": { "==": [{ "var": "protocols.rhd_v1.tracks.jones_criteria.chorea" }, true] },
+              "label": "met_chorea_alone"
+            },
+            {
+              "when": { ">=": [{ "count_true": [
+                { "var": "protocols.rhd_v1.tracks.jones_criteria.carditis" },
+                { "var": "protocols.rhd_v1.tracks.jones_criteria.arthritis" },
+                { "var": "protocols.rhd_v1.tracks.jones_criteria.chorea" },
+                { "var": "protocols.rhd_v1.tracks.jones_criteria.subcutaneous_nodules" },
+                { "var": "protocols.rhd_v1.tracks.jones_criteria.erythema_marginatum" }
+              ] }, 2] },
+              "label": "met_two_major"
+            },
+            {
+              "when": {
+                "and": [
+                  { ">=": [{ "count_true": [
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.carditis" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.arthritis" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.chorea" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.subcutaneous_nodules" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.erythema_marginatum" }
+                  ] }, 1] },
+                  { ">=": [{ "count_true": [
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.monoarthralgia" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.fever_ge_38" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.esr_ge_30_or_crp_ge_3" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.prolonged_pr_interval" }
+                  ] }, 2] }
+                ]
+              },
+              "label": "met_one_major_two_minor"
+            },
+            {
+              "when": {
+                "and": [
+                  { "==": [{ "var": "protocols.rhd_v1.tracks.jones_criteria.recurrent_episode" }, true] },
+                  { ">=": [{ "count_true": [
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.monoarthralgia" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.fever_ge_38" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.esr_ge_30_or_crp_ge_3" },
+                    { "var": "protocols.rhd_v1.tracks.jones_criteria.prolonged_pr_interval" }
+                  ] }, 3] }
+                ]
+              },
+              "label": "met_recurrent_three_minor"
+            },
+            { "when": true, "label": "not_met" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "id": "strep_evidence",
+      "label": "Streptococcal evidence",
+      "description": "If criteria are met without this, it's flagged for follow-up — not blocked.",
+      "render_hint": "plain",
+      "fields": [
+        {
+          "id": "streptococcal_evidence",
+          "label": "Streptococcal evidence present (ASO titre or throat culture)?",
+          "input_source": "investigation",
+          "field_type": "boolean",
+          "skip_when": {
+            "not": [{ "in": [
+              { "var": "protocols.rhd_v1.tracks.jones_criteria.resolution" },
+              ["met_two_major", "met_one_major_two_minor", "met_recurrent_three_minor"]
+            ] }]
+          }
+        }
+      ]
+    },
+    {
+      "type": "derived_tags",
+      "id": "rhd_flags",
+      "label": "Flags",
+      "tags": [
+        {
+          "id": "strep_evidence_flag",
+          "label": "Criteria met without streptococcal evidence — flagged, not blocked",
+          "condition": {
+            "and": [
+              { "in": [
+                { "var": "protocols.rhd_v1.tracks.jones_criteria.resolution" },
+                ["met_two_major", "met_one_major_two_minor", "met_recurrent_three_minor"]
+              ] },
+              { "==": [{ "var": "protocols.rhd_v1.strep_evidence.streptococcal_evidence" }, false] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "drug_recommendation",
+      "id": "acute_treatment",
+      "label": "Treat the acute episode",
+      "description": "Shown because the Jones criteria were met — echo is mandatory here even if the clinical exam looks unremarkable.",
+      "applicable_when": {
+        "in": [
+          { "var": "protocols.rhd_v1.tracks.jones_criteria.resolution" },
+          ["met_chorea_alone", "met_two_major", "met_one_major_two_minor", "met_recurrent_three_minor"]
+        ]
+      },
+      "entries": [
+        {
+          "id": "benzathine_penicillin_acute", "name": "Benzathine penicillin G", "dose": "Single IM dose — 1.2 MU if >27 kg, 600,000 U if ≤27 kg",
+          "group_label": "Acute treatment"
+        },
+        {
+          "id": "anti_inflammatory", "name": "Anti-inflammatory therapy", "dose": "NSAID or corticosteroid per severity",
+          "group_label": "Acute treatment", "note": "Dose not specified in source — per clinical severity."
+        },
+        {
+          "id": "echocardiogram_mandatory", "name": "Echocardiogram", "dose": "Order in every suspected case",
+          "group_label": "Investigation", "note": "Subclinical carditis is itself a major criterion — do not skip this even if clinical exam is unremarkable."
+        }
+      ]
+    },
+    {
+      "type": "track_group",
+      "id": "valve_assessment",
+      "label": "Valve assessment",
+      "description": "Shared with the AF module — if this has already been answered there, it won't be asked again here.",
+      "tracks": [
+        {
+          "id": "valve_anticoagulant",
+          "label": "Anticoagulation decision",
+          "description": "From the echocardiogram — determines DOAC eligibility, or whether VKA/blocking is required instead.",
+          "mode": "decision_table",
+          "fields": [
+            { "id": "echo_status", "label": "Echocardiogram", "field_type": "single_select", "source": "shared", "shared_path": "echo_status" },
+            {
+              "id": "mitral_stenosis_severity", "label": "Mitral stenosis severity", "field_type": "single_select",
+              "source": "shared", "shared_path": "mitral_stenosis_severity",
+              "skip_when": { "!=": [{ "var": "shared.echo_status" }, "lesions_present"] }
+            },
+            {
+              "id": "prosthetic_valve", "label": "Prosthetic valve", "field_type": "single_select",
+              "source": "shared", "shared_path": "prosthetic_valve",
+              "skip_when": {
+                "or": [
+                  { "!=": [{ "var": "shared.echo_status" }, "lesions_present"] },
+                  { "in": [{ "var": "shared.mitral_stenosis_severity" }, ["moderate_or_severe", "not_graded"]] }
+                ]
+              }
+            }
+          ],
+          "display_fields": [
+            {
+              "id": "aortic_stenosis_severe", "label": "Severe aortic stenosis?", "field_type": "boolean",
+              "skip_when": { "!=": [{ "var": "shared.echo_status" }, "lesions_present"] }
+            }
+          ],
+          "decision_rows": [
+            { "when": { "==": [{ "var": "shared.echo_status" }, "not_performed"] }, "label": "blocked_echo_not_performed" },
+            { "when": { "==": [{ "var": "shared.echo_status" }, "no_significant_lesion"] }, "label": "doac_eligible" },
+            { "when": { "==": [{ "var": "shared.mitral_stenosis_severity" }, "not_graded"] }, "label": "blocked_ms_not_graded" },
+            { "when": { "==": [{ "var": "shared.mitral_stenosis_severity" }, "moderate_or_severe"] }, "label": "vka_hard_block_doac" },
+            { "when": { "==": [{ "var": "shared.prosthetic_valve" }, "mechanical"] }, "label": "vka_hard_block_doac" },
+            { "when": true, "label": "doac_eligible" }
+          ]
+        },
+        {
+          "id": "valve_aetiology",
+          "label": "Cause of the valve disease",
+          "description": "Rheumatic aetiology automatically triggers secondary prophylaxis below.",
+          "mode": "single_choice",
+          "fields": [
+            {
+              "id": "aetiology", "label": "Aetiology of the valve lesion", "field_type": "single_select",
+              "input_source": "clinical_judgement",
+              "skip_when": { "!=": [{ "var": "shared.echo_status" }, "lesions_present"] },
+              "options": [
+                { "value": "degenerative_or_unclear", "label": "Degenerative or unclear" },
+                { "value": "rheumatic", "label": "Rheumatic" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "drug_recommendation",
+      "id": "secondary_prophylaxis",
+      "label": "Secondary prophylaxis",
+      "description": "Shown automatically because the cause is rheumatic — this is the single most commonly missed part of RHD management.",
+      "applicable_when": { "==": [{ "var": "protocols.rhd_v1.tracks.valve_aetiology.resolution" }, "rheumatic"] },
+      "entries": [
+        {
+          "id": "benzathine_penicillin_prophylaxis", "name": "Benzathine penicillin G", "dose": "IM every 3–4 weeks — 1.2 MU if >27 kg, 600,000 U if ≤27 kg",
+          "group_label": "Secondary prophylaxis"
+        },
+        {
+          "id": "erythromycin_alt", "name": "Erythromycin", "dose": "250 mg BD",
+          "group_label": "Secondary prophylaxis", "note": "If penicillin-allergic."
+        }
+      ]
+    },
+    {
+      "type": "track_group",
+      "id": "prophylaxis_duration_group",
+      "label": "How long should prophylaxis continue?",
+      "tracks": [
+        {
+          "id": "duration",
+          "label": "Duration",
+          "description": "Depends on whether there was carditis and whether valve disease persists.",
+          "mode": "decision_table",
+          "fields": [
+            { "id": "had_carditis", "label": "Carditis present this episode or historically?", "field_type": "boolean",
+              "input_source": "history",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.tracks.valve_aetiology.resolution" }, "rheumatic"] } },
+            { "id": "residual_valve_disease", "label": "Persistent (residual) valve disease?", "field_type": "boolean",
+              "input_source": "investigation",
+              "skip_when": { "!=": [{ "var": "protocols.rhd_v1.tracks.valve_aetiology.resolution" }, "rheumatic"] } }
+          ],
+          "decision_rows": [
+            { "when": { "!=": [{ "var": "protocols.rhd_v1.tracks.valve_aetiology.resolution" }, "rheumatic"] }, "label": "not_applicable" },
+            { "when": { "==": [{ "var": "protocols.rhd_v1.tracks.duration.residual_valve_disease" }, true] }, "label": "10 years, or until age 40 — often lifelong if severe" },
+            { "when": {
+                "and": [
+                  { "==": [{ "var": "protocols.rhd_v1.tracks.duration.had_carditis" }, true] },
+                  { "==": [{ "var": "protocols.rhd_v1.tracks.duration.residual_valve_disease" }, false] }
+                ]
+              }, "label": "10 years, or until age 21" },
+            { "when": { "==": [{ "var": "protocols.rhd_v1.tracks.duration.had_carditis" }, false] }, "label": "5 years, or until age 21, whichever is longer" },
+            { "when": true, "label": "not_applicable" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "derived_tags",
+      "id": "rhd_flags_2",
+      "label": "Referral flag",
+      "tags": [
+        {
+          "id": "referral_indicated",
+          "label": "Severe MS or AS — refer for balloon mitral valvotomy candidacy or surgical referral",
+          "condition": {
+            "or": [
+              { "==": [{ "var": "shared.mitral_stenosis_severity" }, "moderate_or_severe"] },
+              { "==": [{ "var": "protocols.rhd_v1.tracks.valve_anticoagulant.aortic_stenosis_severe" }, true] }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "terminal_table",
+      "id": "rhd_summary",
+      "label": "Assessment summary",
+      "rows": [
+        {
+          "when": { "in": [
+            { "var": "protocols.rhd_v1.tracks.jones_criteria.resolution" },
+            ["met_chorea_alone", "met_two_major", "met_one_major_two_minor", "met_recurrent_three_minor"]
+          ] },
+          "code": "RHD_ACUTE_EPISODE",
+          "headline": "Acute rheumatic fever criteria met — treat the acute episode and ensure echocardiography; secondary prophylaxis follows from the valve findings below."
+        },
+        {
+          "when": { "==": [{ "var": "protocols.rhd_v1.tracks.jones_criteria.resolution" }, "not_met"] },
+          "code": "RHD_CRITERIA_NOT_MET",
+          "headline": "Revised Jones criteria not met this episode — valve findings below stand on their own if assessed."
+        },
+        {
+          "when": { "==": [{ "var": "protocols.rhd_v1.tracks.jones_criteria.resolution" }, "not_applicable_established_valve_disease"] },
+          "code": "RHD_VALVE_WORKUP",
+          "headline": "Established valve disease pathway — see valve assessment and prophylaxis below."
+        }
+      ],
+      "default_code": "RHD_ASSESSMENT_COMPLETE",
+      "default_headline": "Assessment complete — see findings below."
+    }
+  ]
+}
