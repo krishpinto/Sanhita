@@ -42,8 +42,8 @@ yarn-error.*
 example
 
 # generated native folders
-/ios
-/android
+ui/ios/
+ui/android/
 
 # ---------------------------------------------------------------------------
 # engine/ — the Python protocol engine (FastAPI + SQLModel)

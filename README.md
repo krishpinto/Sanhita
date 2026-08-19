@@ -1,5 +1,24 @@
 # The Manual Protocol System — from scratch
 
+## Repository layout
+
+```
+ui/       Expo / React Native app. Run everything from in here (npm install, expo start).
+engine/   The protocol engine — Python (FastAPI + SQLModel), plus a Vite web
+          harness for clicking through it without the mobile app.
+```
+
+Each half is self-contained: `ui/` has its own `package.json`, `engine/backend`
+its own `pyproject.toml`. Nothing at the repository root belongs to either one.
+
+```bash
+cd ui     && npm install && npx expo start          # the app
+cd engine/backend && python -m venv .venv && .venv/Scripts/python.exe -m pip install -e ".[dev]"
+cd engine/backend && .venv/Scripts/python.exe demo_consultation.py   # three consultations, end to end
+```
+
+---
+
 This is a different system from the transcription pipeline. Not a variant of
 it, not a mode of it — different problem, different architecture. This doc
 explains why, and what the real components are.
