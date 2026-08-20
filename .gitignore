@@ -55,3 +55,12 @@ __pycache__/
 .pytest_cache/
 *.db
 *.sqlite3
+
+# ---------------------------------------------------------------------------
+# Belt and braces. private/ is meant to live OUTSIDE this repo entirely, as a
+# sibling of it. If it ever lands inside by accident -- a mistyped mv, a
+# relative path off by one directory -- git must refuse to stage it rather
+# than quietly publishing plans, transcripts and design docs.
+# ---------------------------------------------------------------------------
+private/
+**/private/
