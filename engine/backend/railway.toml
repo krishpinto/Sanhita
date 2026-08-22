@@ -5,8 +5,13 @@
 builder = "nixpacks"
 
 [deploy]
-# $PORT is assigned by Railway at run time, and 0.0.0.0 is required -- bound
-# to 127.0.0.1 the container answers only itself and every request times out.
-startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+# 0.0.0.0 is required -- bound to 127.0.0.1 the container answers only itself
+# and every request times out.
+#
+# ${PORT:-8080} rather than $PORT: Railway injects PORT once the service has a
+# domain, but not always before that, and an unset variable expands to nothing
+# so uvicorn gets `--port` with no value and refuses to start. 8080 is the
+# default Railway offers when generating a domain, so the two agree.
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
