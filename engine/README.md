@@ -99,6 +99,9 @@ a plain data-level reference, always overridable, not a special case in code.
 
 ## Running it
 
+New to this codebase? Read [`CODEBASE.md`](CODEBASE.md) first — it maps
+what lives where, what happens on each answer, and the known gaps.
+
 Two terminals — backend and frontend are separate processes, both need to be
 running at once.
 
@@ -107,6 +110,14 @@ running at once.
 ```bash
 cd backend
 uv run uvicorn app.main:app --reload --port 8000
+```
+
+**If `uv` is not installed** (it isn't on every machine here), use the
+checked-out virtualenv directly instead:
+
+```bash
+cd backend
+.venv/Scripts/python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
 `uv run` installs/syncs dependencies automatically on first run (no separate
@@ -135,6 +146,8 @@ backend at `http://localhost:8000` by default (override with `VITE_API_BASE`
 
 ```bash
 cd backend && uv run pytest -q
+# or, without uv:
+cd backend && .venv/Scripts/python.exe -m pytest -q
 ```
 
 Covers the expression DSL including short-circuit determinability, full

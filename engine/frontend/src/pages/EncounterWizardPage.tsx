@@ -1,33 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { activateProtocol, getEncounterSummary, getNextStep, postAnswer } from "../api/client";
 import type { EncounterSummary, FrontierFieldOut, NextStepResponse } from "../api/types";
-import { FieldGroupPanel } from "../components/FieldGroupPanel";
+import { CompletedGroupPanel } from "../components/CompletedGroupPanel";
+import { FieldGroupPanel, type QuestionRow } from "../components/FieldGroupPanel";
 import { ProgressHeader } from "../components/ProgressHeader";
 import { ProtocolOfferBanner } from "../components/ProtocolOfferBanner";
+import {
+  hydrate,
+  recordAnswer,
+  targetOf,
+  type AnsweredQuestion,
+  type AnswerTarget,
+  type Ledger,
+} from "../state/answers";
+import { groupDescriptionOf, type GroupKind } from "../state/grouping";
 
-type Kind = "gate" | "track-a" | "track-b" | "track" | "core" | "shared";
-type Group = { key: string; title: string; description: string | null; kind: Kind; fields: FrontierFieldOut[] };
-
-function groupFrontier(fields: FrontierFieldOut[]): Group[] {
-  const groups = new Map<string, Group>();
-  for (const f of fields) {
-    const key = `${f.protocol_id}:${f.block_id}:${f.track_id ?? ""}`;
-    if (!groups.has(key)) {
-      let kind: Kind = "track";
-      if (f.protocol_id === "core") kind = "core";
-      else if (f.answer_path.startsWith("shared.")) kind = "shared";
-      else if (f.track_id) {
-        kind = /track_a|^t1/.test(f.track_id) ? "track-a" : /track_b|^t2/.test(f.track_id) ? "track-b" : "track";
-      } else if (f.block_label.toLowerCase().includes("gate")) {
-        kind = "gate";
-      }
-      const title = f.track_label ?? f.block_label;
-      const description = f.track_description ?? f.block_description;
-      groups.set(key, { key, title, description, kind, fields: [] });
-    }
-    groups.get(key)!.fields.push(f);
-  }
-  return Array.from(groups.values());
+interface LiveGroup {
+  key: string;
+  title: string;
+  description: string | null;
+  kind: GroupKind;
+  rows: QuestionRow[];
 }
 
 export function EncounterWizardPage({
@@ -43,8 +36,20 @@ export function EncounterWizardPage({
 }) {
   const [step, setStep] = useState<NextStepResponse | null>(null);
   const [summary, setSummary] = useState<EncounterSummary | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [ledger, setLedger] = useState<Ledger>(new Map());
+  // Only the control being posted is disabled, never the whole screen. A global
+  // freeze on every answer is what made rapid tick-through feel unresponsive.
+  const [pending, setPending] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+
+  // Questions render in the order the engine first offered them, so answering
+  // one never reshuffles the rest of the block under the clinician's hand.
+  const seen = useRef<Map<string, number>>(new Map());
+  const seenCount = useRef(0);
+  const orderOf = (path: string) => {
+    if (!seen.current.has(path)) seen.current.set(path, seenCount.current++);
+    return seen.current.get(path)!;
+  };
 
   const refreshSummary = () => {
     getEncounterSummary(encounterId, token)
@@ -52,45 +57,145 @@ export function EncounterWizardPage({
       .catch(() => {});
   };
 
-  const refresh = async () => {
-    const result = await getNextStep(encounterId, token);
+  // Every engine reply carries both halves of the encounter -- what is still
+  // outstanding and what is already recorded -- and the ledger is rebuilt from
+  // the recorded half each time. That is what makes a reloaded page come back
+  // with its answered blocks intact, and what makes an answer invalidated by
+  // a correction actually leave the screen.
+  const applyStep = (result: NextStepResponse) => {
+    const next = hydrate(result);
+    for (const path of next.keys()) orderOf(path);
+    for (const f of result.core_frontier) orderOf(f.answer_path);
     setStep(result);
-    refreshSummary();
+    setLedger(next);
   };
 
   useEffect(() => {
-    refresh().catch((e) => setError(String(e)));
+    getNextStep(encounterId, token)
+      .then((r) => {
+        applyStep(r);
+        refreshSummary();
+      })
+      .catch((e) => setError(String(e)));
   }, [encounterId]);
 
-  const handleAnswer = async (path: string, value: unknown) => {
-    setBusy(true);
+  // Answering and correcting are the same act here. The engine accepts a
+  // replacement on a path it already holds, so the client does not need a
+  // separate correction path -- only the previous value, to put back if the
+  // post fails.
+  const handleAnswer = async (target: AnswerTarget, value: unknown) => {
+    setPending((p) => new Set(p).add(target.path));
     setError(null);
+    // Show it as recorded straight away; the engine's reply is authoritative
+    // and arrives a moment later.
+    const lastKnown = step;
+    setLedger((l) => recordAnswer(l, target, value));
     try {
-      const result = await postAnswer(encounterId, token, path, value);
-      setStep(result);
+      const result = await postAnswer(encounterId, token, target.path, value);
+      applyStep(result);
       refreshSummary();
     } catch (e) {
+      // The optimistic row is rolled back to the last state the engine
+      // confirmed, so a rejected answer never lingers on screen as recorded.
       setError(e instanceof Error ? e.message : String(e));
+      if (lastKnown) setLedger(hydrate(lastKnown));
     } finally {
-      setBusy(false);
+      setPending((p) => {
+        const next = new Set(p);
+        next.delete(target.path);
+        return next;
+      });
     }
   };
 
   const handleActivate = async (protocolId: string) => {
-    setBusy(true);
+    setPending((p) => new Set(p).add(protocolId));
     try {
       const result = await activateProtocol(encounterId, token, protocolId);
-      setStep(result);
+      applyStep(result);
       refreshSummary();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      setPending((p) => {
+        const next = new Set(p);
+        next.delete(protocolId);
+        return next;
+      });
     }
   };
 
-  if (!step) return <div className="wrap">Loading…</div>;
+  if (!step) return <div className="wrap">Loading...</div>;
 
+  // A live group is any block with an outstanding question. Its rows are the
+  // outstanding fields plus everything already answered in the same block.
+  const buildGroups = (frontier: FrontierFieldOut[]): LiveGroup[] => {
+    const groups = new Map<string, LiveGroup>();
+    for (const f of frontier) {
+      const target = targetOf(f);
+      orderOf(target.path);
+      if (!groups.has(target.groupKey)) {
+        groups.set(target.groupKey, {
+          key: target.groupKey,
+          title: target.groupTitle,
+          description: groupDescriptionOf(f),
+          kind: target.groupKind,
+          rows: [],
+        });
+      }
+      groups
+        .get(target.groupKey)!
+        .rows.push({ path: target.path, outstanding: f, answered: ledger.get(target.path) ?? null });
+    }
+    for (const a of ledger.values()) {
+      const g = groups.get(a.groupKey);
+      if (g && !g.rows.some((r) => r.path === a.path)) {
+        g.rows.push({ path: a.path, outstanding: null, answered: a });
+      }
+    }
+    for (const g of groups.values()) g.rows.sort((x, y) => orderOf(x.path) - orderOf(y.path));
+    return Array.from(groups.values());
+  };
+
+  const coreGroups = buildGroups(step.core_frontier);
+  const activeGroups = buildGroups(step.active_protocols.flatMap((p) => p.frontier));
+  const liveKeys = new Set([...coreGroups, ...activeGroups].map((g) => g.key));
+
+  // Blocks with nothing outstanding left. They collapse rather than vanish.
+  const completed = new Map<string, { title: string; answers: AnsweredQuestion[] }>();
+  for (const a of ledger.values()) {
+    if (liveKeys.has(a.groupKey)) continue;
+    if (!completed.has(a.groupKey)) completed.set(a.groupKey, { title: a.groupTitle, answers: [] });
+    completed.get(a.groupKey)!.answers.push(a);
+  }
+  for (const c of completed.values()) c.answers.sort((x, y) => orderOf(x.path) - orderOf(y.path));
+  const completedGroups = Array.from(completed.entries()).sort(
+    (a, b) => orderOf(a[1].answers[0].path) - orderOf(b[1].answers[0].path)
+  );
+
+  const completedPanels = completedGroups.map(([key, c]) => (
+    <CompletedGroupPanel
+      key={key}
+      title={c.title}
+      answers={c.answers}
+      pending={pending}
+      onAnswer={handleAnswer}
+    />
+  ));
+
+  const errorPanel = error && (
+    <div className="panel gate">
+      <div className="field-label" style={{ color: "var(--danger)" }}>
+        {error}
+      </div>
+    </div>
+  );
+
+  // A hard exit stops the consultation, but it is still a conclusion drawn
+  // from an answer -- and the answer it was drawn from may have been a
+  // mis-tap. The recorded blocks stay reachable underneath so the ECG can be
+  // corrected and the exit lifted, rather than the clinician having to start
+  // the patient again.
   if (step.core_terminal) {
     return (
       <div className="wrap">
@@ -98,6 +203,13 @@ export function EncounterWizardPage({
           <div className="k mono">Hard exit</div>
           <h2>{step.core_terminal.headline}</h2>
         </div>
+        {errorPanel}
+        {completedPanels.length > 0 && (
+          <p className="panel-desc" style={{ marginTop: 18 }}>
+            Entered something by mistake? Open a block below to change it.
+          </p>
+        )}
+        {completedPanels}
         <div className="nav">
           <button className="btn secondary" onClick={onReset}>
             New patient
@@ -107,30 +219,31 @@ export function EncounterWizardPage({
     );
   }
 
-  const activeFrontierGroups = groupFrontier(step.active_protocols.flatMap((p) => p.frontier));
-  const coreGroups = groupFrontier(step.core_frontier);
-
   return (
     <div className="wrap">
       <ProgressHeader summary={summary} step={step} />
 
-      {error && (
-        <div className="panel gate">
-          <div className="field-label" style={{ color: "var(--danger)" }}>
-            {error}
-          </div>
-        </div>
-      )}
+      {errorPanel}
+
+      {completedPanels}
 
       {coreGroups.map((g) => (
-        <FieldGroupPanel key={g.key} title={g.title} description={g.description} kind={g.kind} fields={g.fields} onAnswer={handleAnswer} busy={busy} />
+        <FieldGroupPanel
+          key={g.key}
+          title={g.title}
+          description={g.description}
+          kind={g.kind}
+          rows={g.rows}
+          pending={pending}
+          onAnswer={handleAnswer}
+        />
       ))}
 
       {step.offered_protocols.map((offer) => (
         <ProtocolOfferBanner
           key={offer.protocol_id}
           offer={offer}
-          busy={busy}
+          busy={pending.has(offer.protocol_id)}
           onActivate={() => handleActivate(offer.protocol_id)}
         />
       ))}
@@ -139,13 +252,21 @@ export function EncounterWizardPage({
         .filter((p) => p.status === "resolved")
         .map((p) => (
           <div className="panel" key={p.protocol_id}>
-            <div className="eyebrow">{p.protocol_name} — resolved</div>
+            <div className="eyebrow">{p.protocol_name} resolved</div>
             <div className="field-label">{p.terminal?.headline}</div>
           </div>
         ))}
 
-      {activeFrontierGroups.map((g) => (
-        <FieldGroupPanel key={g.key} title={g.title} description={g.description} kind={g.kind} fields={g.fields} onAnswer={handleAnswer} busy={busy} />
+      {activeGroups.map((g) => (
+        <FieldGroupPanel
+          key={g.key}
+          title={g.title}
+          description={g.description}
+          kind={g.kind}
+          rows={g.rows}
+          pending={pending}
+          onAnswer={handleAnswer}
+        />
       ))}
 
       {step.ready_for_result && (

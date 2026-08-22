@@ -3,6 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
+from app.answer_log import transcript
 from app.auth import get_encounter_for_path
 from app.db import get_session
 from app.differential_engine import (
@@ -31,6 +32,7 @@ def get_result(
             "differential": None,
             "protocols": [],
             "unrun_protocols": [],
+            "answer_log": transcript(session, encounter.id),
             "ai_opinion": None,
             "doctor_opinion": None,
         }
@@ -59,6 +61,10 @@ def get_result(
         "differential": _differential_audit(encounter),
         "protocols": [serialize_protocol_result(r) for r in next_step.active_protocols],
         "unrun_protocols": unrun,
+        # Everything the clinician typed or tapped, in order, corrections
+        # included. A routing recommendation nobody can check the inputs of is
+        # not decision support.
+        "answer_log": transcript(session, encounter.id),
         "ai_opinion": _serialize_ai_opinion(ai_opinion),
         "doctor_opinion": _serialize_doctor_opinion(doctor_opinion),
     }

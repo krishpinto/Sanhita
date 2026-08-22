@@ -10,6 +10,8 @@ const CORE_PHASE_LABELS: Record<string, string> = {
   risk_factors_step: "Risk factors",
   symptoms_step: "Presenting symptoms",
   differential_review: "Differential review",
+  differential_review_step: "Differential and findings",
+  differential_confirmation_step: "Confirm before dropping",
   ecg_step: "ECG",
   vitals_step: "Vitals",
 };

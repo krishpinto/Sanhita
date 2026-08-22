@@ -1,4 +1,4 @@
-"""SQLite persistence. Six tables, deliberately no more: no persisted
+"""SQLite persistence. Seven tables, deliberately no more: no persisted
 derived-value cache (the engine recomputes from raw answers on every read)
 and no migrations tooling (create_all() against a fresh file is enough for a
 prototype)."""
@@ -96,3 +96,37 @@ class DoctorOpinion(SQLModel, table=True):
     structured_alternate_diagnosis: str | None = None
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)
+
+
+class AnswerEvent(SQLModel, table=True):
+    """Append-only witness of everything the clinician entered, in the order
+    they entered it -- including answers they later changed.
+
+    The engine never reads this table. It still recomputes every result from
+    the live answer tables above; this is a record, not a source. It exists
+    because two things need it and neither is the engine: a finished
+    consultation has to be able to show the doctor every question they were
+    asked and what they answered, and once answers can be corrected, "what did
+    it say before I changed it" becomes part of the clinical record rather
+    than a curiosity.
+
+    `entries_json` is the human rendering done at write time, while the field
+    definition that produced the question is still in hand: a list of
+    {question, answer} pairs. One pair for a simple field; one per finding for
+    the findings screen; one per recorded sub-field for the ECG.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    encounter_id: str = Field(foreign_key="encounter.id", index=True)
+    seq: int  # order within the encounter, corrections included
+    field_path: str = Field(index=True)
+    protocol_id: str = Field(default="core")
+    block_label: str | None = None
+    field_label: str
+    value_json: str
+    entries_json: str  # JSON list of {"question": str, "answer": str}
+    # A correction carries what it replaced, so the record shows the change
+    # rather than quietly presenting the new answer as if it were the first.
+    is_correction: bool = Field(default=False)
+    previous_entries_json: str | None = None
+    answered_at: datetime = Field(default_factory=_now)

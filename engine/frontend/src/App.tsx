@@ -53,7 +53,12 @@ export default function App() {
       )}
 
       {view === "result" && encounter && (
-        <ResultPage encounterId={encounter.encounterId} token={encounter.accessToken} onReset={handleReset} />
+        <ResultPage
+          encounterId={encounter.encounterId}
+          token={encounter.accessToken}
+          onReset={handleReset}
+          onBack={() => setView("wizard")}
+        />
       )}
 
       <footer className="app-footer">

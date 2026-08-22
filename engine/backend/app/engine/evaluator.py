@@ -45,6 +45,20 @@ class FrontierField:
 
 
 @dataclass
+class AnsweredField(FrontierField):
+    """A field this encounter already holds an answer for.
+
+    The frontier says what is still outstanding; this says what is settled.
+    Both are produced by the same walk, from the same path arithmetic, on
+    purpose -- a second function that recomputed answer paths independently
+    would drift from this one the first time a block type changed, and the
+    client would start posting corrections to paths that no longer exist.
+    """
+
+    value: Any = None
+
+
+@dataclass
 class TrackEvidence:
     track_id: str
     label: str
@@ -69,6 +83,7 @@ class ProtocolEvalResult:
     derived_tags: list[dict[str, Any]] = field(default_factory=list)  # [{"id","label","value"}]
     context_blocks: list[dict[str, Any]] = field(default_factory=list)
     drug_blocks: list[dict[str, Any]] = field(default_factory=list)
+    answered: list[AnsweredField] = field(default_factory=list)
 
 
 def _field_path(protocol_id: str, *segments: str) -> str:
@@ -165,13 +180,18 @@ def _compute_decision_table_resolution(track: TrackDef, namespace: dict) -> str 
 
 
 def _process_gate_block(
-    block: GateBlock, namespace: dict, protocol_id: str, raw_answers: dict[str, Any]
+    block: GateBlock,
+    namespace: dict,
+    protocol_id: str,
+    raw_answers: dict[str, Any],
+    answered: list[AnsweredField],
 ) -> tuple[list[FrontierField], bool, dict[str, str] | None]:
     frontier: list[FrontierField] = []
     for f in block.fields:
         path = _field_path(protocol_id, block.id, f.id)
         if path in raw_answers:
             set_var(namespace, path, raw_answers[path])
+            answered.append(AnsweredField(protocol_id, block.id, None, f, path, value=raw_answers[path]))
         else:
             frontier.append(FrontierField(protocol_id, block.id, None, f, path))
     if frontier:
@@ -198,6 +218,7 @@ def _process_track_group_block(
     protocol_id: str,
     raw_answers: dict[str, Any],
     shared_answers: dict[str, Any],
+    answered: list[AnsweredField],
 ) -> tuple[list[FrontierField], bool, list[TrackEvidence], list[dict[str, str]]]:
     frontier: list[FrontierField] = []
     complete = True
@@ -212,18 +233,19 @@ def _process_track_group_block(
 
             if f.source == "shared":
                 assert f.shared_path is not None
-                answered = f.shared_path in shared_answers
+                is_answered = f.shared_path in shared_answers
                 raw_value = shared_answers.get(f.shared_path)
                 answer_path = f"shared.{f.shared_path}"
             else:
-                answered = path in raw_answers
+                is_answered = path in raw_answers
                 raw_value = raw_answers.get(path)
                 answer_path = path
 
-            state, value = _resolve_field_state(f, namespace, answered, raw_value)
+            state, value = _resolve_field_state(f, namespace, is_answered, raw_value)
             if state == "answered":
                 set_var(namespace, path, value)
                 per_field[f.id] = {"status": "answered", "value": value}
+                answered.append(AnsweredField(protocol_id, block.id, track.id, f, answer_path, value=raw_value))
             elif state == "skipped_by_rule":
                 per_field[f.id] = {"status": "skipped", "value": None}
                 unassessed.append({"field_id": f.id, "label": f.label, "reason": "skipped_by_rule"})
@@ -293,6 +315,7 @@ def _process_context_block(
     protocol_id: str,
     raw_answers: dict[str, Any],
     shared_answers: dict[str, Any],
+    answered: list[AnsweredField],
 ) -> tuple[list[FrontierField], bool, dict[str, Any]]:
     frontier: list[FrontierField] = []
     complete = True
@@ -301,18 +324,19 @@ def _process_context_block(
         path = _field_path(protocol_id, block.id, f.id)
         if f.source == "shared":
             assert f.shared_path is not None
-            answered = f.shared_path in shared_answers
+            is_answered = f.shared_path in shared_answers
             raw_value = shared_answers.get(f.shared_path)
             answer_path = f"shared.{f.shared_path}"
         else:
-            answered = path in raw_answers
+            is_answered = path in raw_answers
             raw_value = raw_answers.get(path)
             answer_path = path
 
-        state, value = _resolve_field_state(f, namespace, answered, raw_value)
+        state, value = _resolve_field_state(f, namespace, is_answered, raw_value)
         if state == "answered":
             set_var(namespace, path, value)
             values[f.id] = value
+            answered.append(AnsweredField(protocol_id, block.id, None, f, answer_path, value=raw_value))
         elif state == "skipped_by_rule":
             pass  # optional-style skip: simply absent from `values`, not an error
         elif f.required:
@@ -411,14 +435,17 @@ def evaluate_protocol(
     drug_blocks: list[dict[str, Any]] = []
     terminal: dict[str, str] | None = None
 
+    answered: list[AnsweredField] = []
+
     def snapshot(status: Literal["active", "resolved"], frontier: list[FrontierField]) -> ProtocolEvalResult:
         return ProtocolEvalResult(
-            pid, status, frontier, terminal, tracks, unassessed, derived_tags, context_blocks, drug_blocks
+            pid, status, frontier, terminal, tracks, unassessed, derived_tags, context_blocks, drug_blocks,
+            answered,
         )
 
     for block in protocol.blocks:
         if isinstance(block, GateBlock):
-            frontier, complete, gate_terminal = _process_gate_block(block, namespace, pid, raw_answers)
+            frontier, complete, gate_terminal = _process_gate_block(block, namespace, pid, raw_answers, answered)
             if not complete:
                 return snapshot("active", frontier)
             if gate_terminal:
@@ -434,7 +461,7 @@ def evaluate_protocol(
 
         if isinstance(block, TrackGroupBlock):
             frontier, complete, evidences, block_unassessed = _process_track_group_block(
-                block, namespace, pid, raw_answers, shared_answers
+                block, namespace, pid, raw_answers, shared_answers, answered
             )
             tracks.extend(evidences)
             unassessed.extend(block_unassessed)
@@ -443,7 +470,9 @@ def evaluate_protocol(
             continue
 
         if isinstance(block, ContextBlock):
-            frontier, complete, values = _process_context_block(block, namespace, pid, raw_answers, shared_answers)
+            frontier, complete, values = _process_context_block(
+                block, namespace, pid, raw_answers, shared_answers, answered
+            )
             context_blocks.append(
                 {"id": block.id, "label": block.label, "render_hint": block.render_hint, "fields": values}
             )

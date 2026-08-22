@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getResult, postDoctorOpinion } from "../api/client";
 import type { ProtocolResultOut, ResultPayload, TrackEvidenceOut } from "../api/types";
 import { AiOpinionBanner } from "../components/AiOpinionBanner";
+import { AnswerLogPanel } from "../components/AnswerLogPanel";
 import { ContextBlockPanel } from "../components/ContextBlockPanel";
 import { DerivedTagsList } from "../components/DerivedTagsList";
 import { DifferentialAuditPanel } from "../components/DifferentialAuditPanel";
@@ -134,10 +135,12 @@ export function ResultPage({
   encounterId,
   token,
   onReset,
+  onBack,
 }: {
   encounterId: string;
   token: string;
   onReset: () => void;
+  onBack: () => void;
 }) {
   const [result, setResult] = useState<ResultPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +170,11 @@ export function ResultPage({
           <div className="k mono">Hard exit</div>
           <h2>{result.core_terminal.headline}</h2>
         </div>
+        <AnswerLogPanel log={result.answer_log} />
         <div className="nav">
+          <button className="btn secondary" onClick={onBack}>
+            Change an answer
+          </button>
           <button className="btn secondary" onClick={onReset}>
             New patient
           </button>
@@ -194,14 +201,23 @@ export function ResultPage({
 
       {result.unrun_protocols.length > 0 && (
         <div className="panel">
-          <div className="eyebrow">Modules not run</div>
+          <div className="eyebrow">Protocols considered but not opened</div>
+          <p className="panel-desc">
+            These exist in this build and were checked against the findings. Nothing here was
+            skipped silently.
+          </p>
           {result.unrun_protocols.map((u) => (
             <div key={u.protocol_id} style={{ fontSize: 13.5, color: "var(--ink2)" }}>
-              {u.name} — {u.reason === "offered_not_accepted" ? "offered, not started" : "activation criteria not met"}
+              {u.name} —{" "}
+              {u.reason === "offered_not_accepted"
+                ? "suggested, but not started"
+                : "not suspected — nothing in the findings pointed here"}
             </div>
           ))}
         </div>
       )}
+
+      <AnswerLogPanel log={result.answer_log} />
 
       <AiOpinionBanner
         encounterId={encounterId}
@@ -213,6 +229,9 @@ export function ResultPage({
       <DoctorOpinionForm encounterId={encounterId} token={token} existing={result.doctor_opinion} />
 
       <div className="nav">
+        <button className="btn secondary" onClick={onBack}>
+          Change an answer
+        </button>
         <button className="btn secondary" onClick={onReset}>
           New patient
         </button>

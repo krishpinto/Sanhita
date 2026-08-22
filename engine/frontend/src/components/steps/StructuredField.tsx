@@ -1,18 +1,29 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FieldDef } from "../../api/types";
 
+// A mini-form (ECG, vitals) recorded as one unit, so this one keeps an
+// explicit submit -- a half-entered tracing should not reach the engine. It
+// reopens with whatever was recorded last, so a correction means changing one
+// box rather than re-entering the whole panel.
 export function StructuredField({
   field,
+  value,
   onAnswer,
   busy,
 }: {
   field: FieldDef;
+  value: unknown;
   onAnswer: (value: Record<string, unknown> | null) => void;
   busy: boolean;
 }) {
-  const [draft, setDraft] = useState<Record<string, unknown>>({});
+  const committed = (value ?? null) as Record<string, unknown> | null;
+  const [draft, setDraft] = useState<Record<string, unknown>>(committed ?? {});
 
-  const set = (id: string, value: unknown) => setDraft((prev) => ({ ...prev, [id]: value }));
+  useEffect(() => {
+    if (committed) setDraft(committed);
+  }, [value]);
+
+  const set = (id: string, v: unknown) => setDraft((prev) => ({ ...prev, [id]: v }));
 
   return (
     <div>
@@ -25,18 +36,10 @@ export function StructuredField({
             </label>
             {sf.field_type === "boolean" && (
               <div className="yn">
-                <button
-                  type="button"
-                  className={draft[sf.id] === true ? "on" : ""}
-                  onClick={() => set(sf.id, true)}
-                >
+                <button type="button" className={draft[sf.id] === true ? "on" : ""} onClick={() => set(sf.id, true)}>
                   Yes
                 </button>
-                <button
-                  type="button"
-                  className={draft[sf.id] === false ? "on" : ""}
-                  onClick={() => set(sf.id, false)}
-                >
+                <button type="button" className={draft[sf.id] === false ? "on" : ""} onClick={() => set(sf.id, false)}>
                   No
                 </button>
               </div>
@@ -58,20 +61,27 @@ export function StructuredField({
             {sf.field_type === "number" && (
               <input
                 type="number"
+                value={(draft[sf.id] as number | undefined) ?? ""}
                 onChange={(e) => set(sf.id, e.target.value === "" ? undefined : Number(e.target.value))}
               />
             )}
-            {sf.field_type === "text" && <input type="text" onChange={(e) => set(sf.id, e.target.value)} />}
+            {sf.field_type === "text" && (
+              <input
+                type="text"
+                value={(draft[sf.id] as string) ?? ""}
+                onChange={(e) => set(sf.id, e.target.value)}
+              />
+            )}
           </div>
         ))}
       </div>
       <div className="nav">
         <button className="btn" disabled={busy} onClick={() => onAnswer(draft)}>
-          Save {field.label}
+          Record {field.label.toLowerCase()}
         </button>
         {!field.required && (
           <button className="btn skip" disabled={busy} onClick={() => onAnswer(null)}>
-            Skip — not provided
+            Not available
           </button>
         )}
       </div>

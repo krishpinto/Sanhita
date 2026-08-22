@@ -1,0 +1,12 @@
+# Railway service config. Set the service's Root Directory to
+# engine/backend so this file (and requirements.txt) are found.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+# $PORT is assigned by Railway at run time, and 0.0.0.0 is required -- bound
+# to 127.0.0.1 the container answers only itself and every request times out.
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

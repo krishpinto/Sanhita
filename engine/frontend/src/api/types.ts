@@ -9,7 +9,8 @@ export type FieldType =
   | "number"
   | "structured_ecg"
   | "structured_vitals"
-  | "differential_review";
+  | "differential_review"
+  | "findings_review";
 
 export interface Option {
   value: string;
@@ -24,6 +25,22 @@ export interface DifferentialItemSpec {
   discriminator_question: string;
   discriminator_input_source: InputSource;
   module: string | null;
+  exclusion_policy: "auto" | "confirm" | "never";
+}
+
+// One observation on the findings screen. Shared: a single question can
+// settle several differential items at once, which is why the doctor
+// answers ~7 of these rather than one per possibility.
+export interface FindingSpec {
+  id: string;
+  question: string;
+  short_label: string;
+  input_source: InputSource;
+  help: string | null;
+  carried_from_symptom: string | null;
+  prefilled: boolean;
+  promotes_only: boolean;
+  resolves: string[];
 }
 
 export type InputSource = "history" | "examination" | "investigation" | "clinical_judgement";
@@ -53,6 +70,7 @@ export interface FieldDef {
   vitalis_addition: boolean;
   vitalis_addition_reason: string | null;
   differential_items: DifferentialItemSpec[];
+  findings: FindingSpec[];
 }
 
 export interface FrontierFieldOut {
@@ -66,6 +84,13 @@ export interface FrontierFieldOut {
   answer_path: string;
   field: FieldDef;
   suggested_value?: unknown;
+}
+
+// A question this encounter already holds an answer for. Same shape as a
+// frontier field plus the recorded value, because the client renders and
+// re-posts both through one code path.
+export interface AnsweredFieldOut extends FrontierFieldOut {
+  value: unknown;
 }
 
 export interface TrackEvidenceOut {
@@ -122,6 +147,7 @@ export interface ProtocolResultOut {
   protocol_id: string;
   status: "active" | "resolved";
   frontier: FrontierFieldOut[];
+  answered: AnsweredFieldOut[];
   terminal: { code: string; headline: string } | null;
   fidelity: "full" | "reduced_fidelity_placeholder";
   fidelity_note: string | null;
@@ -143,6 +169,7 @@ export interface OfferedProtocol {
 
 export interface NextStepResponse {
   core_frontier: FrontierFieldOut[];
+  core_answered: AnsweredFieldOut[];
   core_terminal: { code: string; headline: string } | null;
   offered_protocols: OfferedProtocol[];
   active_protocols: ProtocolResultOut[];
@@ -150,14 +177,39 @@ export interface NextStepResponse {
 }
 
 export interface DifferentialItemAudit extends DifferentialItemSpec {
-  status: "raised" | "excluded";
+  status: "raised" | "promoted" | "pending_confirmation" | "excluded";
   reason: string;
+  finding: string;
+}
+
+export interface FindingAudit {
+  id: string;
+  question: string;
+  short_label: string;
+  answer: boolean | null;
+  carried_from_symptom: string | null;
 }
 
 export interface DifferentialAudit {
   symptoms: string[];
+  findings: FindingAudit[];
   items: DifferentialItemAudit[];
   surviving_modules: string[];
+}
+
+// One submitted answer, rendered by the backend at the moment it was
+// submitted. `entries` is a list because one answer path can be many
+// questions -- the findings screen is nine observations behind a single post.
+export interface AnswerLogEntry {
+  seq: number;
+  field_path: string;
+  protocol_id: string;
+  block_label: string | null;
+  field_label: string;
+  entries: { question: string; answer: string }[];
+  is_correction: boolean;
+  previous_entries: { question: string; answer: string }[] | null;
+  answered_at: string;
 }
 
 export interface ResultPayload {
@@ -166,6 +218,7 @@ export interface ResultPayload {
   differential: DifferentialAudit | null;
   protocols: ProtocolResultOut[];
   unrun_protocols: { protocol_id: string; name: string; reason: string }[];
+  answer_log: AnswerLogEntry[];
   ai_opinion: {
     provider: string;
     status: string;

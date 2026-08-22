@@ -1,0 +1,9 @@
+# Railway's builder installs from this file. Kept in step with pyproject.toml
+# by hand -- there are six lines and one deploy target, so a lockfile and a
+# sync step would cost more than they save.
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+pydantic-settings>=2.6
+sqlmodel>=0.0.22
+httpx>=0.27
