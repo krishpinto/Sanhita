@@ -6,10 +6,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Local default is a file next to the code. In a deployment this must point
-    # at a mounted volume (e.g. sqlite:////data/vitalis.db) -- a container's own
-    # filesystem is wiped on every redeploy, and taking the recorded
-    # consultations with it is not an acceptable way to find that out.
+    # SQLite locally, Postgres (Neon) in a deployment. Paste Neon's connection
+    # string in as-is -- `sqlalchemy_url` below sorts out the dialect prefix.
+    #
+    # What must never happen is a deployment quietly running on the container's
+    # own filesystem: that is wiped on every redeploy, and losing the recorded
+    # consultations is not an acceptable way to discover it.
     database_url: str = "sqlite:///./vitalis.db"
 
     # The web app is served from a different origin than the API (Vercel and
@@ -31,6 +33,28 @@ class Settings(BaseSettings):
     xai_api_key: str | None = None
     xai_api_base: str = "https://api.x.ai/v1"
     xai_model: str = "grok-4"
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.database_url.startswith("sqlite")
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        """Names the driver SQLAlchemy should use, whatever Neon handed you.
+
+        Neon (and Railway, and Heroku before them) give out connection strings
+        beginning `postgres://` or `postgresql://`. SQLAlchemy 2 refuses the
+        first outright and, for the second, reaches for psycopg2 -- which is
+        not installed here, because this runs on psycopg 3. Both failures are
+        at import time with a message that says nothing about the real cause,
+        so the prefix is normalised here rather than left as something a
+        person has to know to type correctly at 1am.
+        """
+        url = self.database_url
+        for prefix in ("postgresql://", "postgres://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix):]
+        return url
 
     @property
     def cors_origin_list(self) -> list[str]:

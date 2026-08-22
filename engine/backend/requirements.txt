@@ -7,3 +7,6 @@ pydantic>=2.9
 pydantic-settings>=2.6
 sqlmodel>=0.0.22
 httpx>=0.27
+# Postgres driver, for Neon. psycopg 3, not psycopg2 -- hence the
+# postgresql+psycopg:// prefix that app/config.py normalises URLs to.
+psycopg[binary]>=3.2
