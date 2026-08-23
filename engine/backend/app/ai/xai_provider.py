@@ -3,37 +3,11 @@ from __future__ import annotations
 import httpx
 
 from app.ai.base import SecondOpinionContext, SecondOpinionProvider, SecondOpinionResult
-
-_SYSTEM_PROMPT = (
-    "You are a non-authoritative second opinion inside a physician-facing clinical "
-    "decision-support tool called Vitalis. You will be given a structured summary of a "
-    "patient encounter and the routing/output already produced by the tool's rule engine. "
-    "Write a short (3-6 sentence) plain-language summary and, if you disagree with the "
-    "engine's routing or think something is missing, say so plainly and explain why. "
-    "You are a suggestion for the treating physician to weigh, not an instruction. "
-    "Never state a definitive diagnosis -- speak in terms of likelihood and what you'd "
-    "want to confirm. Do not repeat this disclaimer in your answer; the interface shows "
-    "it separately."
-)
-
-
-def _build_user_prompt(ctx: SecondOpinionContext) -> str:
-    symptoms = ctx.core.get("symptoms") or []
-    lines = [f"Patient: {ctx.core.get('age')}{ctx.core.get('sex') or ''}, symptoms: {', '.join(symptoms) or 'none recorded'}"]
-    for p in ctx.protocols:
-        lines.append(f"\n--- {p['protocol_name']} ({p['status']}) ---")
-        if p.get("fidelity") == "reduced_fidelity_placeholder":
-            lines.append(f"[reduced-fidelity module: {p.get('fidelity_note')}]")
-        if p.get("terminal"):
-            lines.append(f"Routing: {p['terminal']['headline']}")
-        for t in p.get("tracks", []):
-            lines.append(f"{t['label']}: {t['resolution']} ({t['positive_count']} positive of {t['total_scored_fields']})")
-        if p.get("unassessed"):
-            lines.append("Not assessed: " + ", ".join(u["label"] for u in p["unassessed"]))
-    return "\n".join(lines)
-
+from app.ai.briefing import SYSTEM_PROMPT, build_user_prompt
 
 class XaiProvider(SecondOpinionProvider):
+    """Same briefing as every other provider -- see app/ai/briefing.py."""
+
     name = "xai"
 
     def __init__(self, api_key: str, api_base: str, model: str) -> None:
@@ -43,21 +17,40 @@ class XaiProvider(SecondOpinionProvider):
 
     async def generate(self, ctx: SecondOpinionContext) -> SecondOpinionResult:
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            # Generous, because a reasoning model on a full encounter is not a
+            # 20-second job and a truncated request looks to the doctor like a
+            # broken feature rather than a slow one.
+            async with httpx.AsyncClient(timeout=180.0) as client:
                 response = await client.post(
                     f"{self._api_base}/chat/completions",
                     headers={"Authorization": f"Bearer {self._api_key}"},
                     json={
                         "model": self._model,
+                        "max_tokens": 4000,
                         "messages": [
-                            {"role": "system", "content": _SYSTEM_PROMPT},
-                            {"role": "user", "content": _build_user_prompt(ctx)},
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": build_user_prompt(ctx)},
                         ],
                     },
                 )
+                if response.status_code == 401:
+                    return SecondOpinionResult(
+                        status="error", reason="The AI key is missing or wrong (XAI_API_KEY).", model=self._model
+                    )
+                if response.status_code == 429:
+                    return SecondOpinionResult(
+                        status="error", reason="Rate limited. Wait a few seconds and try again.", model=self._model
+                    )
                 response.raise_for_status()
-                data = response.json()
-                content = data["choices"][0]["message"]["content"]
-                return SecondOpinionResult(status="success", content=content)
-        except Exception as exc:  # noqa: BLE001 -- any failure degrades gracefully, never a 500
-            return SecondOpinionResult(status="error", reason=str(exc))
+                content = (response.json()["choices"][0]["message"]["content"] or "").strip()
+                if not content:
+                    return SecondOpinionResult(
+                        status="error", reason="The model returned an empty response.", model=self._model
+                    )
+                return SecondOpinionResult(status="success", content=content, model=self._model)
+        except httpx.TimeoutException:
+            return SecondOpinionResult(
+                status="error", reason="The AI took too long to answer. Try again.", model=self._model
+            )
+        except Exception as exc:  # noqa: BLE001 -- any failure degrades to a banner, never a 500
+            return SecondOpinionResult(status="error", reason=str(exc), model=self._model)

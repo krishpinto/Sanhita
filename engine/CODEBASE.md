@@ -87,9 +87,9 @@ engine/
 │   │   ├── engine/           ← generic rules engine, ZERO medical knowledge
 │   │   ├── protocols/        ← the diseases, as JSON data
 │   │   ├── routers/          ← the HTTP endpoints
-│   │   ├── ai/               ← optional second opinion (off by default)
+│   │   ├── ai/               ← optional second opinion (off unless a key is set)
 │   │   └── *.py              ← intake, differential, orchestration
-│   └── tests/                ← 117 tests
+│   └── tests/                ← 162 tests
 └── frontend/         React. A thin demo client. No clinical logic at all.
 ```
 
@@ -196,6 +196,47 @@ page as **"What was entered"**.
 
 ---
 
+## 7c. The AI second opinion
+
+Off unless an API key is set, and that is a supported state -- the tool routed
+patients without it for its whole life and still does. With no key the panel
+says so and nothing else changes.
+
+**It never decides anything.** Routing comes from the rule engine; the model
+is shown the finished result and asked whether it agrees. It cannot change a
+protocol's output, reopen a module, or move an item in the differential.
+
+**Every provider gets the identical briefing.** `app/ai/briefing.py` holds the
+system prompt and builds the user prompt; `gemini_provider.py`,
+`anthropic_provider.py` and `xai_provider.py` are transport and error handling
+only. If they were briefed separately, "the AI disagreed" would mean different
+things depending on which key happened to be set that week.
+
+**What the briefing contains** is everything the result screen shows the
+doctor -- the full answer log question by question, the differential with the
+reason each item is where it is, what was never assessed, the routing and its
+tracks, and the protocols that were never opened. Roughly 2,000 tokens for a
+typical chest-pain encounter. A model briefed on less than the doctor can see
+would disagree for reasons the doctor cannot check.
+
+The prompt names the age blind spot explicitly, because that is the one
+failure the engine cannot catch on its own: nothing in `differential_table.json`
+or `differential_engine.py` reads age (see §8), so a protocol that fits a
+60-year-old is offered to a 21-year-old with identical answers and the engine
+never notices. A test asserts that instruction is still in the prompt.
+
+The model is asked for four fixed headings -- VERDICT / READING / WORTH A
+SECOND LOOK / BEFORE YOU ACT -- which the result page renders as sections. If
+a model ignores the format the whole answer falls through as one unlabelled
+block and is still shown in full; nothing is ever silently dropped.
+
+`POST /encounters/{id}/ai-opinion`, stored in the `aiopinion` table, returned
+with the result as `ai_opinion`. Failures degrade to a banner, never a 500,
+and every failure message names the thing that is actually wrong rather than
+echoing a stack trace at a doctor.
+
+---
+
 ## 8. Known gaps — real, not hypothetical
 
 - **No cross-module reconciliation.** Two active modules produce two separate
@@ -216,8 +257,22 @@ page as **"What was entered"**.
   re-used if that field became reachable again. Not observed in the three
   shipped protocols, but not prevented either.
 - **`CLAUDE.md` at the repo root says "no LLM calls anywhere in this build."**
-  The engine ships an optional xAI provider (off by default). Those two
-  statements need reconciling.
+  That sentence was written for the Expo app and is still true of it and of
+  the engine's routing, which is deterministic end to end. It is no longer
+  true of the product as a whole: the engine ships an optional second opinion
+  (§7c) that a deployment can switch on with one key. Reword it rather than
+  leaving a reader to guess which half applies.
+- **The AI second opinion is not evaluated.** There is no set of encounters
+  with known-correct verdicts to measure it against, so "it gave good advice
+  in testing" is the only evidence there is. Before it is presented as
+  anything more than a prompt for the doctor to think again, it needs a
+  scored bank of cases -- including ones where the right answer is AGREE.
+- **No rate limit on the AI endpoint.** Combined with the absence of any
+  login, anyone with the URL can spend the key's quota.
+- **`ADMIN_KEY` is one shared password, not authentication.** It gates
+  `GET /consultations` (every patient on the deployment) and nothing else. It
+  does not record who looked and cannot be revoked for one person. Everything
+  else is still unauthenticated: anyone with the URL can start a consultation.
 
 ---
 

@@ -30,6 +30,27 @@ class Settings(BaseSettings):
     # listed one by one. A pattern like https://.*\\.vercel\\.app covers them.
     cors_origin_regex: str | None = None
 
+    # Unlocks the consultation-history page, which is the only endpoint that
+    # can see across encounters. Unset means that page is disabled, not open --
+    # see app/routers/history.py for why that default matters.
+    admin_key: str | None = None
+
+    # The AI second opinion is optional and off unless a key is set. Set
+    # exactly one of these; the first one found wins, in the order listed in
+    # app/ai/factory.py. With none set the feature says so on screen and
+    # everything else works normally.
+    #
+    # Gemini is the default because its free tier is real: no card, and a
+    # daily request allowance far above what one doctor testing the tool will
+    # get through.
+    gemini_api_key: str | None = None
+    gemini_api_base: str = "https://generativelanguage.googleapis.com/v1beta"
+    gemini_model: str = "gemini-3.7-flash"
+
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-opus-5"
+    anthropic_effort: str = "medium"
+
     xai_api_key: str | None = None
     xai_api_base: str = "https://api.x.ai/v1"
     xai_model: str = "grok-4"

@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,11 +5,13 @@ from sqlmodel import Session, select
 
 from app.ai.base import SecondOpinionContext
 from app.ai.factory import get_ai_provider
+from app.answer_log import transcript
 from app.auth import get_encounter_for_path
 from app.db import get_session
 from app.engine_service import compute_next_step, serialize_protocol_result
 from app.models_api import DoctorOpinionRequest
 from app.models_db import AiOpinion, DoctorOpinion, Encounter
+from app.result_payload import core_summary, differential_audit, unrun_protocols
 
 router = APIRouter(prefix="/encounters", tags=["opinions"])
 
@@ -25,13 +26,16 @@ async def post_ai_opinion(
         raise HTTPException(status.HTTP_409_CONFLICT, "No protocol has reached a result yet")
 
     provider = get_ai_provider()
+    # Everything the result screen shows the doctor, and nothing it doesn't.
+    # A second opinion formed on a narrower view than the doctor's own would
+    # disagree for reasons they cannot check -- see app/ai/briefing.py.
     ctx = SecondOpinionContext(
-        core={
-            "age": encounter.patient_age,
-            "sex": encounter.patient_sex,
-            "symptoms": json.loads(encounter.symptoms_json) if encounter.symptoms_json else [],
-        },
+        core=core_summary(encounter),
         protocols=[serialize_protocol_result(r) for r in next_step.active_protocols],
+        differential=differential_audit(encounter),
+        unrun_protocols=unrun_protocols(next_step),
+        answer_log=transcript(session, encounter.id),
+        core_terminal=next_step.core_terminal,
     )
     requested_at = datetime.now(timezone.utc)
     result = await provider.generate(ctx)
@@ -50,6 +54,7 @@ async def post_ai_opinion(
 
     return {
         "provider": row.provider,
+        "model": result.model,
         "status": row.status,
         "content": row.content,
         "reason": row.reason,

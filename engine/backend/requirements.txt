@@ -10,3 +10,8 @@ httpx>=0.27
 # Postgres driver, for Neon. psycopg 3, not psycopg2 -- hence the
 # postgresql+psycopg:// prefix that app/config.py normalises URLs to.
 psycopg[binary]>=3.2
+
+# The AI second opinion talks to Gemini over plain REST with httpx above, so
+# it needs nothing extra. Uncomment this only if you switch to ANTHROPIC_API_KEY
+# -- app/ai/factory.py imports it lazily, so an unused line here is pure weight.
+# anthropic>=0.40

@@ -57,6 +57,8 @@ is what the pooler is for.
    |---|---|
    | `DATABASE_URL` | your Neon connection string |
    | `CORS_ORIGINS` | `*` (tighten in step 5) |
+   | `GEMINI_API_KEY` | your Google AI Studio key (optional — see below) |
+   | `ADMIN_KEY` | a long random string (unlocks the past-consultations page) |
 
    **No volume needed.** The data lives in Neon, not on the container. That is
    the point of using it: Railway containers are wiped on every redeploy,
@@ -64,6 +66,44 @@ is what the pooler is for.
 4. **Settings → Networking → Generate Domain**, port `8080`. Copy the URL.
 5. Check it: opening `https://<your-railway-url>/health` should show
    `{"status":"ok"}`.
+
+### The review key
+
+`ADMIN_KEY` unlocks **Past consultations** — the page listing every patient
+recorded on the deployment. Make it long and random; anything you would not
+mind seeing guessed is too short.
+
+Leave it unset and that page is **disabled**, not open. That is deliberate: a
+deployment that forgets to set it gets a dead page rather than every patient
+record readable by anyone who finds the URL.
+
+Understand what it is not. It is one shared password: it does not record who
+looked, it cannot be revoked for one person, and everyone reviewing
+consultations types the same string. It exists to stop casual access, not to
+be an access-control system. Before real patient data goes in, this needs
+proper accounts.
+
+### The AI second opinion key
+
+Optional. Without it the tool works exactly as it always has and the AI panel
+says so on screen — it is a supported state, not a broken one.
+
+To switch it on, get a key at <https://aistudio.google.com/apikey> (Google
+account, no card) and set `GEMINI_API_KEY` in Railway. Nothing else changes;
+the model default (`gemini-3.7-flash`) is free of charge, and the free tier's
+daily allowance is far above what one doctor testing the tool will use.
+
+Two other providers are wired up if you ever want them. Set exactly one key —
+the first one found wins, in this order:
+
+| Key | Model variable | Notes |
+|---|---|---|
+| `GEMINI_API_KEY` | `GEMINI_MODEL` | free tier, the default |
+| `ANTHROPIC_API_KEY` | `ANTHROPIC_MODEL` | paid; also uncomment `anthropic` in `requirements.txt` |
+| `XAI_API_KEY` | `XAI_MODEL` | paid |
+
+Whichever you pick, the model is sent the same briefing — see
+`backend/app/ai/briefing.py`.
 
 ## Step 4 — Vercel (the web app)
 
@@ -129,6 +169,30 @@ inside the container — which Railway wipes on every redeploy.
 Neon suspends an idle compute. The connection pool checks each connection
 before use (`pool_pre_ping`), so this should not surface — if it does, the
 pooled Neon connection string (`-pooler` in the host) is the next thing to try.
+
+**Past consultations says it is not enabled**
+`ADMIN_KEY` is not set in Railway, or the service has not restarted since you
+set it.
+
+**A local database tool cannot reach Neon, but the deployed app is fine**
+Not Neon. Some Indian ISP resolvers refuse to answer for `*.aws.neon.tech` —
+the lookup comes back "refused", and every local tool fails the same way while
+Railway is unaffected. Point your machine at `1.1.1.1` and it resolves
+immediately. The Neon console itself loads (that is a different hostname); it
+is the **Tables** view that breaks, because that one connects to the compute
+endpoint.
+
+**The AI panel says "Not switched on for this deployment"**
+`GEMINI_API_KEY` is not set in Railway, or the service has not restarted since
+you set it. Everything else on the page is unaffected.
+
+**The AI panel says the key is missing, wrong, or not enabled**
+The key reached the service but Google rejected it. Usually a key from a
+project without the Generative Language API turned on — make a fresh one at
+<https://aistudio.google.com/apikey>.
+
+**The AI panel says "Free-tier limit reached"**
+Ten requests a minute on the free tier. Wait a minute. It resets.
 
 **"Can't load plugin: sqlalchemy.dialects:postgres"**
 An old-style `postgres://` URL reached SQLAlchemy unnormalised. `config.py`

@@ -10,13 +10,31 @@ class ApiError extends Error {
   }
 }
 
+/** FastAPI puts the human-readable message in `detail`. Showing the raw
+ *  body instead puts `{"detail":"..."}` on screen in front of a doctor. */
+async function readError(res: Response): Promise<string> {
+  const body = await res.text();
+  if (!body) return res.statusText;
+  try {
+    const parsed = JSON.parse(body);
+    if (typeof parsed?.detail === "string") return parsed.detail;
+    if (Array.isArray(parsed?.detail)) {
+      // Pydantic validation errors arrive as a list of objects.
+      const first = parsed.detail[0];
+      if (typeof first?.msg === "string") return first.msg;
+    }
+  } catch {
+    // Not JSON. Fall through and show whatever the server actually sent.
+  }
+  return body;
+}
+
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
-    const body = await res.text();
-    throw new ApiError(res.status, body || res.statusText);
+    throw new ApiError(res.status, await readError(res));
   }
   return res.json() as Promise<T>;
 }
@@ -60,11 +78,14 @@ export function listProtocols() {
 }
 
 export function requestAiOpinion(encounterId: string, token: string) {
-  return request<{ provider: string; status: string; content: string | null; reason: string | null; disclaimer: string }>(
-    `/encounters/${encounterId}/ai-opinion`,
-    { method: "POST" },
-    token
-  );
+  return request<{
+    provider: string;
+    model: string | null;
+    status: string;
+    content: string | null;
+    reason: string | null;
+    disclaimer: string;
+  }>(`/encounters/${encounterId}/ai-opinion`, { method: "POST" }, token);
 }
 
 export function postDoctorOpinion(
@@ -76,5 +97,38 @@ export function postDoctorOpinion(
     `/encounters/${encounterId}/doctor-opinion`,
     { method: "POST", body: JSON.stringify(body) },
     token
+  );
+}
+
+export interface ConsultationRow {
+  id: string;
+  access_token: string;
+  created_at: string;
+  updated_at: string;
+  status: string;
+  patient_name: string | null;
+  patient_age: number | null;
+  patient_sex: string | null;
+  facility_tier: string | null;
+  symptoms: string[];
+  questions_answered: number;
+  safety_exit: string | null;
+  outcomes: { protocol_id: string; status: string; headline: string | null }[];
+}
+
+export interface ConsultationsPage {
+  total: number;
+  limit: number;
+  offset: number;
+  consultations: ConsultationRow[];
+}
+
+/** The one call that crosses encounters -- gated by the shared review key,
+ *  not by an encounter token. See backend app/routers/history.py. */
+export function listConsultations(reviewKey: string, offset = 0, limit = 100) {
+  return request<ConsultationsPage>(
+    `/consultations?limit=${limit}&offset=${offset}`,
+    {},
+    reviewKey
   );
 }

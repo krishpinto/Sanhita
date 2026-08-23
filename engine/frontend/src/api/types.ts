@@ -212,6 +212,16 @@ export interface AnswerLogEntry {
   answered_at: string;
 }
 
+export interface AiOpinionOut {
+  provider: string;
+  model?: string | null;
+  status: string;
+  content: string | null;
+  reason: string | null;
+  requested_at: string;
+  responded_at: string | null;
+}
+
 export interface ResultPayload {
   core_terminal: { code: string; headline: string } | null;
   core: { name: string | null; age: number | null; sex: string | null; symptoms: string[] };
@@ -219,14 +229,7 @@ export interface ResultPayload {
   protocols: ProtocolResultOut[];
   unrun_protocols: { protocol_id: string; name: string; reason: string }[];
   answer_log: AnswerLogEntry[];
-  ai_opinion: {
-    provider: string;
-    status: string;
-    content: string | null;
-    reason: string | null;
-    requested_at: string;
-    responded_at: string | null;
-  } | null;
+  ai_opinion: AiOpinionOut | null;
   doctor_opinion: { doctor_note: string | null; structured_alternate_diagnosis: string | null; updated_at: string } | null;
 }
 
